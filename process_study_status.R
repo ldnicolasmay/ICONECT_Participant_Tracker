@@ -17,7 +17,7 @@ data_slct <- data %>%
   select(ts_sub_id, 
          redcap_event_name, 
          ts_lfn, ts_pfn, ts_lln,
-         ends_with("_dat"), ends_with("_dtc"),
+         ends_with("_dat"), ends_with("_dtc"), ends_with("date"),
          ends_with("_complete"))
 print(object.size(data_slct), units = "auto")
 data_slct %>% 
@@ -40,7 +40,7 @@ purrr::map(data_slct_fltr, unique)
 data_slct_fltr_1 <- data_slct_fltr %>% 
   select(ts_sub_id, redcap_event_name, ts_lfn, ts_pfn, ts_lln)
 data_slct_fltr_2 <- data_slct_fltr %>% 
-  select(ends_with("_dat"), ends_with("_dtc"))
+  select(ends_with("_dat"), ends_with("_dtc"), ends_with("date"))
 data_slct_fltr_3 <- data_slct_fltr %>% 
   select(ends_with("_complete"))
 
@@ -81,7 +81,14 @@ stages_not_is_na <-
                           "phy_dat",
                           "c2_dat",
                           "neo_dat"),
-       bl_cdx_arm_1   = c("d1_dat"))
+       bl_cdx_arm_1   = c("d1_dat"),
+       bv2_arm_1      = c("date",
+                          "otd_dat",
+                          "fhd_dat",
+                          "ap_dat"),
+       admin_arm_1    = character(0), # No dates for video chat randomization
+       bl_mri_arm_1   = c("mrs_dat")
+  )
 
 stages_eq_two <- 
   list(scrn_tel_arm_1 = c("telephone_screening_complete"),
@@ -102,16 +109,32 @@ stages_eq_two <-
                           "nacc_b1_physical_evaluation_complete",
                           "nacc_c2_neuropsych_scores_complete",
                           "neoffi_personality_inventory_complete"),
-       bl_cdx_arm_1   = c("nacc_d1_clinician_diagnosis_complete"))
+       bl_cdx_arm_1   = c("nacc_d1_clinician_diagnosis_complete"),
+       bv2_arm_1      = c("nih_toolbox_complete",
+                          "otdlr_administration_complete",
+                          "otdlr_composite_scores_complete",
+                          "family_history_of_dementia_complete",
+                          "apoe_complete"),
+       admin_arm_1    = c("video_chat_randomization_form_complete"),
+       bl_mri_arm_1   = c("mri_scheduling_form_complete")
+  )
 
+# Get a specific value from the supplied dataframe
+get_value <- function(uniq_id, redcap_event_name, field, df) {
+  unlist(
+    df[df$ts_sub_id == uniq_id &
+         df$redcap_event_name == redcap_event_name,
+       field]
+  )
+}
 
 # Checks if all date fields from redcap_event_name row for a given pt. ID
 # are not NA in the supplied dataframe
-date_fields_complete <- function(df, uniq_id, redcap_event_name) {
+date_fields_complete <- function(uniq_id, redcap_event_name, df) {
   categ_date =
-      df[df[["ts_sub_id"]] == uniq_id &
-                       df[["redcap_event_name"]] == redcap_event_name,
-                     stages_not_is_na[[redcap_event_name]]]
+    df[df[["ts_sub_id"]] == uniq_id &
+         df[["redcap_event_name"]] == redcap_event_name,
+       stages_not_is_na[[redcap_event_name]]]
   categ_date = unlist(categ_date)
   ifelse(length(categ_date) > 0,
          all(!is.na(categ_date)),
@@ -120,66 +143,91 @@ date_fields_complete <- function(df, uniq_id, redcap_event_name) {
 
 # Checks if all form_compete fields fields from redcap_event_name row 
 # for a given pt. ID are complete in the supplied dataframe
-form_fields_complete <- function(df, uniq_id, redcap_event_name) {
+form_fields_complete <- function(uniq_id, redcap_event_name, df) {
   categ_comp =
-      df[df[["ts_sub_id"]] == uniq_id &
-           df[["redcap_event_name"]] == redcap_event_name,
-         stages_eq_two[[redcap_event_name]]]
+    df[df[["ts_sub_id"]] == uniq_id &
+         df[["redcap_event_name"]] == redcap_event_name,
+       stages_eq_two[[redcap_event_name]]]
   categ_comp = unlist(categ_comp)
   ifelse(length(categ_comp) > 0,
          all(categ_comp == 2),
          FALSE)
 }
 
-for (uniq_id in uniq_ids) {
-  # name
-  fname <- 
-    unlist(
-      data_slct_fltr[data_slct_fltr$ts_sub_id == uniq_id & 
-                       data_slct_fltr$redcap_event_name == "scrn_tel_arm_1", 
-                     "ts_lfn"]
-    )
-  lname <- 
-    unlist(
-      data_slct_fltr[data_slct_fltr$ts_sub_id == uniq_id &
-                       data_slct_fltr$redcap_event_name == "scrn_tel_arm_1",
-                     "ts_lln"]
-    )
+build_distilled_row <- function(uniq_id, df) {
+
+  # ID
+  ts_sub_id = uniq_id
+    
+  # Pt. name
+  ts_lfn = get_value(uniq_id, "scrn_tel_arm_1", "ts_lfn", data_slct_fltr)
+  ts_pfn = get_value(uniq_id, "scrn_tel_arm_1", "ts_pfn", data_slct_fltr)
+  ts_lln = get_value(uniq_id, "scrn_tel_arm_1", "ts_lln", data_slct_fltr)
   
   # telephone screening complete?
-  scrn_tel_date <- 
-    date_fields_complete(data_slct_fltr, uniq_id, "scrn_tel_arm_1")
-  scrn_tel_comp <-
-    form_fields_complete(data_slct_fltr, uniq_id, "scrn_tel_arm_1")
-
+  scrn_tel_date =
+    date_fields_complete(uniq_id, "scrn_tel_arm_1", data_slct_fltr)
+  scrn_tel_comp =
+    form_fields_complete(uniq_id, "scrn_tel_arm_1", data_slct_fltr)
+  
   # screening visit complete?
-  scrn_v_date <-
-    date_fields_complete(data_slct_fltr, uniq_id, "scrn_v_arm_1")
-  scrn_v_comp <-
-    form_fields_complete(data_slct_fltr, uniq_id, "scrn_v_arm_1")
+  scrn_v_date =
+    date_fields_complete(uniq_id, "scrn_v_arm_1", data_slct_fltr)
+  scrn_v_comp =
+    form_fields_complete(uniq_id, "scrn_v_arm_1", data_slct_fltr)
   
   # baseline visit 1 complete?
-  bv1_date <-
-    date_fields_complete(data_slct_fltr, uniq_id, "bv1_arm_1")
-  bv1_comp <-
-    form_fields_complete(data_slct_fltr, uniq_id, "bv1_arm_1")
+  bv1_date =
+    date_fields_complete(uniq_id, "bv1_arm_1", data_slct_fltr)
+  bv1_comp =
+    form_fields_complete(uniq_id, "bv1_arm_1", data_slct_fltr)
   
   # basline diagnosis complete?
-  bl_cdx_date <-
-    date_fields_complete(data_slct_fltr, uniq_id, "bl_cdx_arm_1")
-  bl_cdx_comp <-
-    form_fields_complete(data_slct_fltr, uniq_id, "bl_cdx_arm_1")
+  bl_cdx_date =
+    date_fields_complete(uniq_id, "bl_cdx_arm_1", data_slct_fltr)
+  bl_cdx_comp =
+    form_fields_complete(uniq_id, "bl_cdx_arm_1", data_slct_fltr)
   
-  # cat out
-  cat(paste(uniq_id, 
-            "\n name:", fname, lname, 
-            "\n scrn_tel:", scrn_tel_date, scrn_tel_comp, 
-            "\n scrn_v:", scrn_v_date, scrn_v_comp, 
-            "\n bv1:", bv1_date, bv1_comp,
-            "\n bl_cdx", bl_cdx_date, bl_cdx_comp, 
-            "\n"))
+  # baseline visit 2 complete?
+  bv2_date =
+    date_fields_complete(uniq_id, "bv2_arm_1", data_slct_fltr)
+  bv2_comp =
+    form_fields_complete(uniq_id, "bv2_arm_1", data_slct_fltr)
+  
+  # video chat randomization complete?
+  admin_date = NA
+  admin_comp =
+    form_fields_complete(uniq_id, "admin_arm_1", data_slct_fltr)
+  
+  # baseline mri scheduling complete?
+  bl_mri_date =
+    date_fields_complete(uniq_id, "bl_mri_arm_1", data_slct_fltr)
+  bl_mri_comp =
+    form_fields_complete(uniq_id, "bl_mri_arm_1", data_slct_fltr)
+  
+  tibble(ts_sub_id,
+         ts_lfn, ts_pfn, ts_lln,
+         scrn_tel_date, scrn_tel_comp,
+         scrn_v_date,   scrn_v_comp,
+         bv1_date,      bv1_comp,
+         bl_cdx_date,   bl_cdx_comp,
+         bv2_date,      bv2_comp,
+         admin_date,    admin_comp,
+         bl_mri_date,   bl_mri_comp
+  )
 }
 
+# row_c2001 <- build_distilled_row("C2001", data_slct_fltr)
+# row_c2002 <- build_distilled_row("C2002", data_slct_fltr)
+# 
+# class(row_c2001)
+# 
+# rbind(row_c2001, row_c2002)
+# bind_rows(row_c2001, row_c2002)
+# blah <- bind_rows(row_c2001, row_c2002)
+# View(blah)
+
+distilled_df <- purrr::map_df(uniq_ids, build_distilled_row, data_slct_fltr)
 
 
 
