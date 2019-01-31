@@ -1274,8 +1274,6 @@ build_distilled_row <- function(uniq_id, df) {
   w48d3_vc_comp = form_fields_complete(uniq_id, "w48d3_vc_arm_1", df)
   w48d4_vc_comp = form_fields_complete(uniq_id, "w48d4_vc_arm_1", df)
   
-  
-  
   tibble(ts_sub_id,
          # name
          ts_lfn, ts_pfn, ts_lln,
@@ -1459,6 +1457,140 @@ build_distilled_row <- function(uniq_id, df) {
 data_dstl <- purrr::map_df(uniq_ids, build_distilled_row, data_slct_fltr_cln)
 
 # fwrite(data_dstl, "data_dstl.csv", na = "")
+
+data_summ <- data_dstl %>% 
+  transmute(
+    ts_sub_id,
+    ts_lfn,
+    ts_pfn,
+    ts_lln,
+    stage_comp = case_when(
+    # weekly telephone
+    w48_tel_date  & w48_tel_comp  ~ "w48_tel",
+    w47_tel_date  & w47_tel_comp  ~ "w47_tel",
+    w46_tel_date  & w46_tel_comp  ~ "w46_tel",
+    w45_tel_date  & w45_tel_comp  ~ "w45_tel",
+    w44_tel_date  & w44_tel_comp  ~ "w44_tel",
+    w43_tel_date  & w43_tel_comp  ~ "w43_tel",
+    w42_tel_date  & w42_tel_comp  ~ "w42_tel",
+    w41_tel_date  & w41_tel_comp  ~ "w41_tel",
+    w40_tel_date  & w40_tel_comp  ~ "w40_tel",
+    w39_tel_date  & w39_tel_comp  ~ "w39_tel",
+    w38_tel_date  & w38_tel_comp  ~ "w38_tel",
+    w37_tel_date  & w37_tel_comp  ~ "w37_tel",
+    w36_tel_date  & w36_tel_comp  ~ "w36_tel",
+    w35_tel_date  & w35_tel_comp  ~ "w35_tel",
+    w34_tel_date  & w34_tel_comp  ~ "w34_tel",
+    w33_tel_date  & w33_tel_comp  ~ "w33_tel",
+    w32_tel_date  & w32_tel_comp  ~ "w32_tel",
+    w31_tel_date  & w31_tel_comp  ~ "w31_tel",
+    w30_tel_date  & w30_tel_comp  ~ "w30_tel",
+    w29_tel_date  & w29_tel_comp  ~ "w29_tel",
+    w28_tel_date  & w28_tel_comp  ~ "w28_tel",
+    w27_tel_date  & w27_tel_comp  ~ "w27_tel",
+    w26_tel_date  & w26_tel_comp  ~ "w26_tel",
+    w25_tel_date  & w25_tel_comp  ~ "w25_tel",
+    w24_tel_date  & w24_tel_comp  ~ "w24_tel",
+    w23_tel_date  & w23_tel_comp  ~ "w23_tel",
+    w22_tel_date  & w22_tel_comp  ~ "w22_tel",
+    w21_tel_date  & w21_tel_comp  ~ "w21_tel",
+    w20_tel_date  & w20_tel_comp  ~ "w20_tel",
+    w19_tel_date  & w19_tel_comp  ~ "w19_tel",
+    w18_tel_date  & w18_tel_comp  ~ "w18_tel",
+    w17_tel_date  & w17_tel_comp  ~ "w17_tel",
+    w16_tel_date  & w16_tel_comp  ~ "w16_tel",
+    w15_tel_date  & w15_tel_comp  ~ "w15_tel",
+    w14_tel_date  & w14_tel_comp  ~ "w14_tel",
+    w13_tel_date  & w13_tel_comp  ~ "w13_tel",
+    w12_tel_date  & w12_tel_comp  ~ "w12_tel",
+    w11_tel_date  & w11_tel_comp  ~ "w11_tel",
+    w10_tel_date  & w10_tel_comp  ~ "w10_tel",
+    w09_tel_date  & w09_tel_comp  ~ "w09_tel",
+    w08_tel_date  & w08_tel_comp  ~ "w08_tel",
+    w07_tel_date  & w07_tel_comp  ~ "w07_tel",
+    w06_tel_date  & w06_tel_comp  ~ "w06_tel",
+    w05_tel_date  & w05_tel_comp  ~ "w05_tel",
+    w04_tel_date  & w04_tel_comp  ~ "w04_tel",
+    w03_tel_date  & w03_tel_comp  ~ "w03_tel",
+    w02_tel_date  & w02_tel_comp  ~ "w02_tel",
+    w01_tel_date  & w01_tel_comp  ~ "w01_tel",
+    # baseline MRI
+    bl_mri_date   & bl_mri_comp   ~ "bl_mri",
+    # randomization
+    admin_comp    ~ "admin",   # admin_date is NA
+    # baseline visit 2
+    bv2_date      & bv2_comp      ~ "bv2",
+    # baseline clinician dx
+    bl_cdx_date   & bl_cdx_comp   ~ "bl_cdx",
+    # baseline visit 1
+    bv1_date      & bv1_comp      ~ "bv1",
+    # screening visit
+    scrn_v_date   & scrn_v_comp   ~ "scrn_v",
+    # telephone screening
+    scrn_tel_date & scrn_tel_comp ~ "scrn_tel",
+    # catch-all
+    TRUE ~ NA_character_
+  )) %>% 
+  mutate(
+    stage_next = case_when(
+      is.na(stage_comp)        ~ "scrn_tel",
+      stage_comp == "scrn_tel" ~ "scrn_v",
+      stage_comp == "scrn_v"   ~ "bv1",
+      stage_comp == "bv1"      ~ "bl_cdx",
+      stage_comp == "bl_cdx"   ~ "bv2",
+      stage_comp == "bv2"      ~ "admin",
+      stage_comp == "admin"    ~ "bl_mri",
+      stage_comp == "bl_mri"   ~ "w01_tel",
+      stage_comp == "w01_tel"  ~ "w02_tel",
+      stage_comp == "w02_tel"  ~ "w03_tel",
+      stage_comp == "w03_tel"  ~ "w04_tel",
+      stage_comp == "w04_tel"  ~ "w05_tel",
+      stage_comp == "w05_tel"  ~ "w06_tel",
+      stage_comp == "w06_tel"  ~ "w07_tel",
+      stage_comp == "w07_tel"  ~ "w08_tel",
+      stage_comp == "w08_tel"  ~ "w09_tel",
+      stage_comp == "w09_tel"  ~ "w10_tel",
+      stage_comp == "w10_tel"  ~ "w11_tel",
+      stage_comp == "w11_tel"  ~ "w12_tel",
+      stage_comp == "w12_tel"  ~ "w13_tel",
+      stage_comp == "w13_tel"  ~ "w14_tel",
+      stage_comp == "w14_tel"  ~ "w15_tel",
+      stage_comp == "w15_tel"  ~ "w16_tel",
+      stage_comp == "w16_tel"  ~ "w17_tel",
+      stage_comp == "w17_tel"  ~ "w18_tel",
+      stage_comp == "w18_tel"  ~ "w19_tel",
+      stage_comp == "w19_tel"  ~ "w20_tel",
+      stage_comp == "w20_tel"  ~ "w21_tel",
+      stage_comp == "w21_tel"  ~ "w22_tel",
+      stage_comp == "w22_tel"  ~ "w23_tel",
+      stage_comp == "w23_tel"  ~ "w24_tel",
+      stage_comp == "w24_tel"  ~ "w25_tel",
+      stage_comp == "w25_tel"  ~ "w26_tel",
+      stage_comp == "w26_tel"  ~ "w27_tel",
+      stage_comp == "w27_tel"  ~ "w28_tel",
+      stage_comp == "w28_tel"  ~ "w29_tel",
+      stage_comp == "w29_tel"  ~ "w30_tel",
+      stage_comp == "w30_tel"  ~ "w31_tel",
+      stage_comp == "w31_tel"  ~ "w32_tel",
+      stage_comp == "w32_tel"  ~ "w33_tel",
+      stage_comp == "w33_tel"  ~ "w34_tel",
+      stage_comp == "w34_tel"  ~ "w35_tel",
+      stage_comp == "w35_tel"  ~ "w36_tel",
+      stage_comp == "w36_tel"  ~ "w37_tel",
+      stage_comp == "w37_tel"  ~ "w38_tel",
+      stage_comp == "w38_tel"  ~ "w39_tel",
+      stage_comp == "w39_tel"  ~ "w40_tel",
+      stage_comp == "w40_tel"  ~ "w41_tel",
+      stage_comp == "w41_tel"  ~ "w42_tel",
+      stage_comp == "w42_tel"  ~ "w43_tel",
+      stage_comp == "w43_tel"  ~ "w44_tel",
+      stage_comp == "w44_tel"  ~ "w45_tel",
+      stage_comp == "w45_tel"  ~ "w46_tel",
+      stage_comp == "w46_tel"  ~ "w47_tel",
+      stage_comp == "w47_tel"  ~ "w48_tel",
+      stage_comp == "w48_tel"  ~ "finished"
+    )
+  )
 
 
 
