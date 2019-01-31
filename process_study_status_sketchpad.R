@@ -16,7 +16,7 @@ data_slct <- data %>%
   filter(is.na(redcap_repeat_instrument)) %>% # elim.s previsit stability scrn.
   select(ts_sub_id, 
          redcap_event_name, 
-         ts_lfn, ts_pfn, ts_lln,
+         # ts_lfn, ts_pfn, ts_lln,
          ends_with("_dat"), ends_with("_dtc"), ends_with("date"),
          ends_with("_complete"))
 # print(object.size(data_slct), units = "auto")
@@ -660,13 +660,10 @@ build_distilled_row <- function(uniq_id, df) {
   # ID
   ts_sub_id = uniq_id
   
-  # Pt. name
-  ts_lfn = get_value(uniq_id, "scrn_tel_arm_1", "ts_lfn", df)
-  ts_pfn = get_value(uniq_id, "scrn_tel_arm_1", "ts_pfn", df)
-  ts_lln = get_value(uniq_id, "scrn_tel_arm_1", "ts_lln", df)
-  # ts_lfn = "blah"
-  # ts_pfn = "blah"
-  # ts_lln = "blah"
+  # # Pt. name
+  # ts_lfn = get_value(uniq_id, "scrn_tel_arm_1", "ts_lfn", df)
+  # ts_pfn = get_value(uniq_id, "scrn_tel_arm_1", "ts_pfn", df)
+  # ts_lln = get_value(uniq_id, "scrn_tel_arm_1", "ts_lln", df)
   
   # telephone screening complete?
   scrn_tel_date = date_fields_complete(uniq_id, "scrn_tel_arm_1", df)
@@ -1275,8 +1272,8 @@ build_distilled_row <- function(uniq_id, df) {
   w48d4_vc_comp = form_fields_complete(uniq_id, "w48d4_vc_arm_1", df)
   
   tibble(ts_sub_id,
-         # name
-         ts_lfn, ts_pfn, ts_lln,
+         # # name
+         # ts_lfn, ts_pfn, ts_lln,
          # screen telephone
          scrn_tel_date, scrn_tel_comp,
          # screen visit
@@ -1461,9 +1458,9 @@ data_dstl <- purrr::map_df(uniq_ids, build_distilled_row, data_slct_fltr_cln)
 data_summ <- data_dstl %>% 
   transmute(
     ts_sub_id,
-    ts_lfn,
-    ts_pfn,
-    ts_lln,
+    # ts_lfn,
+    # ts_pfn,
+    # ts_lln,
     stage_comp = case_when(
     # weekly telephone
     w48_tel_date  & w48_tel_comp  ~ "w48_tel",
@@ -1592,6 +1589,7 @@ data_summ <- data_dstl %>%
     )
   )
 
+saveRDS(data_summ, "./rds/data_summ.Rds")
 
 
 ###@    #==--  :  --==#    @##==---==##@##==---==##@    #==--  :  --==#    @###
