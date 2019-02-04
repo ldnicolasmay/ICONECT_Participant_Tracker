@@ -63,7 +63,8 @@ uniq_ids <- data_slct_fltr_cln %>%
 ####################################
 
 stages_not_is_na <- 
-  list(# telephone screening
+  list(
+    # telephone screening
     scrn_tel_arm_1 = c("ts_dat"), 
     # home screening
     scrn_v_arm_1   = c("con_dtc",
@@ -340,7 +341,8 @@ stages_not_is_na <-
   )
 
 stages_eq_two <- 
-  list(# telephone screening
+  list(
+    # telephone screening
     scrn_tel_arm_1 = c("telephone_screening_complete"),
     # screening visit
     scrn_v_arm_1   = c("consent_admin_form_complete",
