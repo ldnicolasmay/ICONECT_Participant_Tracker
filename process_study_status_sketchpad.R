@@ -4,6 +4,17 @@ library(data.table)
 library(dplyr)
 library(stringr)
 
+# Metaprogramming fxn that builds lists for iteratively numbered field names
+list_builder <- function(vctr, value, prefix = "", suffix = "") {
+  # base case
+  if (length(vctr) == 1L) {
+    return(list2(!!sym(paste0(prefix, vctr, suffix)) := value))
+  }
+  
+  c(list2(!!sym(paste0(prefix, vctr[1], suffix)) := value),
+    list_builder(vctr[2:length(vctr)], value, prefix, suffix))
+}
+
 # Load all data
 data <- data.table::fread("OCTRI5793Internetbas_DATA_2019-01-26_0908.csv",
                           na.strings = "")
@@ -62,561 +73,250 @@ uniq_ids <- data_slct_fltr_cln %>%
 
 ####################################
 
+week_vctr <- 1:48
+
 stages_not_is_na <- 
-  list(
-    # telephone screening
-    scrn_tel_arm_1 = c("ts_dat"), 
-    # home screening
-    scrn_v_arm_1   = c("con_dtc",
-                       "em_dat",
-                       "dem_dat",
-                       "vis_dat",
-                       "hr_dat",
-                       "moc_dat",
-                       "lsn_dat",
-                       "a5_dat",
-                       "rx_dat",
-                       "b6_dat",
-                       "dsa_dat",
-                       "elg_dat",
-                       "mrp_dat"),
-    # baseline visit 1
-    bv1_arm_1      = c("cdr_dat",
-                       "phy_dat",
-                       "c2_dat",
-                       "neo_dat"),
-    # baseline clinician dx
-    bl_cdx_arm_1   = c("d1_dat"),
-    # baseline visit 2
-    bv2_arm_1      = c("date",
-                       "otd_dat",
-                       "fhd_dat",
-                       "ap_dat"),
-    # randomization
-    admin_arm_1    = character(0), # No dates for video chat randomization
-    # baseline MRI
-    bl_mri_arm_1   = c("mrs_dat"),
+  c(
+    list(
+      # telephone screening
+      scrn_tel_arm_1 = c("ts_dat")
+    ),
+    list(
+      # home screening
+      scrn_v_arm_1   = c("con_dtc",
+                         "em_dat",
+                         "dem_dat",
+                         "vis_dat",
+                         "hr_dat",
+                         "moc_dat",
+                         "lsn_dat",
+                         "a5_dat",
+                         "rx_dat",
+                         "b6_dat",
+                         "dsa_dat",
+                         "elg_dat",
+                         "mrp_dat")
+    ),
+    list(
+      # baseline visit 1
+      bv1_arm_1      = c("cdr_dat",
+                         "phy_dat",
+                         "c2_dat",
+                         "neo_dat")
+    ),
+    list(
+      # baseline clinician dx
+      bl_cdx_arm_1   = c("d1_dat"),
+      # baseline visit 2
+      bv2_arm_1      = c("date",
+                         "otd_dat",
+                         "fhd_dat",
+                         "ap_dat")
+    ),
+    list(
+      # randomization
+      admin_arm_1    = character(0) # No dates for video chat randomization
+    ),
+    list(
+      # baseline MRI
+      bl_mri_arm_1   = c("mrs_dat")
+    ),
     # weekly phone calls
-    w01_tel_arm_1  = c("wkq_dat"),
-    w02_tel_arm_1  = c("wkq_dat"),
-    w03_tel_arm_1  = c("wkq_dat"),
-    w04_tel_arm_1  = c("wkq_dat"),
-    w05_tel_arm_1  = c("wkq_dat"),
-    w06_tel_arm_1  = c("wkq_dat"),
-    w07_tel_arm_1  = c("wkq_dat"),
-    w08_tel_arm_1  = c("wkq_dat"),
-    w09_tel_arm_1  = c("wkq_dat"),
-    w10_tel_arm_1  = c("wkq_dat"),
-    w11_tel_arm_1  = c("wkq_dat"),
-    w12_tel_arm_1  = c("wkq_dat"),
-    w13_tel_arm_1  = c("wkq_dat"),
-    w14_tel_arm_1  = c("wkq_dat"),
-    w15_tel_arm_1  = c("wkq_dat"),
-    w16_tel_arm_1  = c("wkq_dat"),
-    w17_tel_arm_1  = c("wkq_dat"),
-    w18_tel_arm_1  = c("wkq_dat"),
-    w19_tel_arm_1  = c("wkq_dat"),
-    w20_tel_arm_1  = c("wkq_dat"),
-    w21_tel_arm_1  = c("wkq_dat"),
-    w22_tel_arm_1  = c("wkq_dat"),
-    w23_tel_arm_1  = c("wkq_dat"),
-    w24_tel_arm_1  = c("wkq_dat"),
-    w25_tel_arm_1  = c("wkq_dat"),
-    w26_tel_arm_1  = c("wkq_dat"),
-    w27_tel_arm_1  = c("wkq_dat"),
-    w28_tel_arm_1  = c("wkq_dat"),
-    w29_tel_arm_1  = c("wkq_dat"),
-    w30_tel_arm_1  = c("wkq_dat"),
-    w31_tel_arm_1  = c("wkq_dat"),
-    w32_tel_arm_1  = c("wkq_dat"),
-    w33_tel_arm_1  = c("wkq_dat"),
-    w34_tel_arm_1  = c("wkq_dat"),
-    w35_tel_arm_1  = c("wkq_dat"),
-    w36_tel_arm_1  = c("wkq_dat"),
-    w37_tel_arm_1  = c("wkq_dat"),
-    w38_tel_arm_1  = c("wkq_dat"),
-    w39_tel_arm_1  = c("wkq_dat"),
-    w40_tel_arm_1  = c("wkq_dat"),
-    w41_tel_arm_1  = c("wkq_dat"),
-    w42_tel_arm_1  = c("wkq_dat"),
-    w43_tel_arm_1  = c("wkq_dat"),
-    w44_tel_arm_1  = c("wkq_dat"),
-    w45_tel_arm_1  = c("wkq_dat"),
-    w46_tel_arm_1  = c("wkq_dat"),
-    w47_tel_arm_1  = c("wkq_dat"),
-    w48_tel_arm_1  = c("wkq_dat"),
-    # daily video chats
-    w01d1_vc_arm_1 = c("vcd_dat"),
-    w01d2_vc_arm_1 = c("vcd_dat"),
-    w01d3_vc_arm_1 = c("vcd_dat"),
-    w01d4_vc_arm_1 = c("vcd_dat"),
-    w02d1_vc_arm_1 = c("vcd_dat"),
-    w02d2_vc_arm_1 = c("vcd_dat"),
-    w02d3_vc_arm_1 = c("vcd_dat"),
-    w02d4_vc_arm_1 = c("vcd_dat"),
-    w03d1_vc_arm_1 = c("vcd_dat"),
-    w03d2_vc_arm_1 = c("vcd_dat"),
-    w03d3_vc_arm_1 = c("vcd_dat"),
-    w03d4_vc_arm_1 = c("vcd_dat"),
-    w04d1_vc_arm_1 = c("vcd_dat"),
-    w04d2_vc_arm_1 = c("vcd_dat"),
-    w04d3_vc_arm_1 = c("vcd_dat"),
-    w04d4_vc_arm_1 = c("vcd_dat"),
-    w05d1_vc_arm_1 = c("vcd_dat"),
-    w05d2_vc_arm_1 = c("vcd_dat"),
-    w05d3_vc_arm_1 = c("vcd_dat"),
-    w05d4_vc_arm_1 = c("vcd_dat"),
-    w06d1_vc_arm_1 = c("vcd_dat"),
-    w06d2_vc_arm_1 = c("vcd_dat"),
-    w06d3_vc_arm_1 = c("vcd_dat"),
-    w06d4_vc_arm_1 = c("vcd_dat"),
-    w07d1_vc_arm_1 = c("vcd_dat"),
-    w07d2_vc_arm_1 = c("vcd_dat"),
-    w07d3_vc_arm_1 = c("vcd_dat"),
-    w07d4_vc_arm_1 = c("vcd_dat"),
-    w08d1_vc_arm_1 = c("vcd_dat"),
-    w08d2_vc_arm_1 = c("vcd_dat"),
-    w08d3_vc_arm_1 = c("vcd_dat"),
-    w08d4_vc_arm_1 = c("vcd_dat"),
-    w09d1_vc_arm_1 = c("vcd_dat"),
-    w09d2_vc_arm_1 = c("vcd_dat"),
-    w09d3_vc_arm_1 = c("vcd_dat"),
-    w09d4_vc_arm_1 = c("vcd_dat"),
-    w10d1_vc_arm_1 = c("vcd_dat"),
-    w10d2_vc_arm_1 = c("vcd_dat"),
-    w10d3_vc_arm_1 = c("vcd_dat"),
-    w10d4_vc_arm_1 = c("vcd_dat"),
-    w11d1_vc_arm_1 = c("vcd_dat"),
-    w11d2_vc_arm_1 = c("vcd_dat"),
-    w11d3_vc_arm_1 = c("vcd_dat"),
-    w11d4_vc_arm_1 = c("vcd_dat"),
-    w12d1_vc_arm_1 = c("vcd_dat"),
-    w12d2_vc_arm_1 = c("vcd_dat"),
-    w12d3_vc_arm_1 = c("vcd_dat"),
-    w12d4_vc_arm_1 = c("vcd_dat"),
-    w13d1_vc_arm_1 = c("vcd_dat"),
-    w13d2_vc_arm_1 = c("vcd_dat"),
-    w13d3_vc_arm_1 = c("vcd_dat"),
-    w13d4_vc_arm_1 = c("vcd_dat"),
-    w14d1_vc_arm_1 = c("vcd_dat"),
-    w14d2_vc_arm_1 = c("vcd_dat"),
-    w14d3_vc_arm_1 = c("vcd_dat"),
-    w14d4_vc_arm_1 = c("vcd_dat"),
-    w15d1_vc_arm_1 = c("vcd_dat"),
-    w15d2_vc_arm_1 = c("vcd_dat"),
-    w15d3_vc_arm_1 = c("vcd_dat"),
-    w15d4_vc_arm_1 = c("vcd_dat"),
-    w16d1_vc_arm_1 = c("vcd_dat"),
-    w16d2_vc_arm_1 = c("vcd_dat"),
-    w16d3_vc_arm_1 = c("vcd_dat"),
-    w16d4_vc_arm_1 = c("vcd_dat"),
-    w17d1_vc_arm_1 = c("vcd_dat"),
-    w17d2_vc_arm_1 = c("vcd_dat"),
-    w17d3_vc_arm_1 = c("vcd_dat"),
-    w17d4_vc_arm_1 = c("vcd_dat"),
-    w18d1_vc_arm_1 = c("vcd_dat"),
-    w18d2_vc_arm_1 = c("vcd_dat"),
-    w18d3_vc_arm_1 = c("vcd_dat"),
-    w18d4_vc_arm_1 = c("vcd_dat"),
-    w19d1_vc_arm_1 = c("vcd_dat"),
-    w19d2_vc_arm_1 = c("vcd_dat"),
-    w19d3_vc_arm_1 = c("vcd_dat"),
-    w19d4_vc_arm_1 = c("vcd_dat"),
-    w20d1_vc_arm_1 = c("vcd_dat"),
-    w20d2_vc_arm_1 = c("vcd_dat"),
-    w20d3_vc_arm_1 = c("vcd_dat"),
-    w20d4_vc_arm_1 = c("vcd_dat"),
-    w21d1_vc_arm_1 = c("vcd_dat"),
-    w21d2_vc_arm_1 = c("vcd_dat"),
-    w21d3_vc_arm_1 = c("vcd_dat"),
-    w21d4_vc_arm_1 = c("vcd_dat"),
-    w22d1_vc_arm_1 = c("vcd_dat"),
-    w22d2_vc_arm_1 = c("vcd_dat"),
-    w22d3_vc_arm_1 = c("vcd_dat"),
-    w22d4_vc_arm_1 = c("vcd_dat"),
-    w23d1_vc_arm_1 = c("vcd_dat"),
-    w23d2_vc_arm_1 = c("vcd_dat"),
-    w23d3_vc_arm_1 = c("vcd_dat"),
-    w23d4_vc_arm_1 = c("vcd_dat"),
-    w24d1_vc_arm_1 = c("vcd_dat"),
-    w24d2_vc_arm_1 = c("vcd_dat"),
-    w24d3_vc_arm_1 = c("vcd_dat"),
-    w24d4_vc_arm_1 = c("vcd_dat"),
-    w25d1_vc_arm_1 = c("vcd_dat"),
-    w25d2_vc_arm_1 = c("vcd_dat"),
-    w25d3_vc_arm_1 = c("vcd_dat"),
-    w25d4_vc_arm_1 = c("vcd_dat"),
-    w26d1_vc_arm_1 = c("vcd_dat"),
-    w26d2_vc_arm_1 = c("vcd_dat"),
-    w26d3_vc_arm_1 = c("vcd_dat"),
-    w26d4_vc_arm_1 = c("vcd_dat"),
-    w27d1_vc_arm_1 = c("vcd_dat"),
-    w27d2_vc_arm_1 = c("vcd_dat"),
-    w27d3_vc_arm_1 = c("vcd_dat"),
-    w27d4_vc_arm_1 = c("vcd_dat"),
-    w28d1_vc_arm_1 = c("vcd_dat"),
-    w28d2_vc_arm_1 = c("vcd_dat"),
-    w28d3_vc_arm_1 = c("vcd_dat"),
-    w28d4_vc_arm_1 = c("vcd_dat"),
-    w29d1_vc_arm_1 = c("vcd_dat"),
-    w29d2_vc_arm_1 = c("vcd_dat"),
-    w29d3_vc_arm_1 = c("vcd_dat"),
-    w29d4_vc_arm_1 = c("vcd_dat"),
-    w30d1_vc_arm_1 = c("vcd_dat"),
-    w30d2_vc_arm_1 = c("vcd_dat"),
-    w30d3_vc_arm_1 = c("vcd_dat"),
-    w30d4_vc_arm_1 = c("vcd_dat"),
-    w31d1_vc_arm_1 = c("vcd_dat"),
-    w31d2_vc_arm_1 = c("vcd_dat"),
-    w31d3_vc_arm_1 = c("vcd_dat"),
-    w31d4_vc_arm_1 = c("vcd_dat"),
-    w32d1_vc_arm_1 = c("vcd_dat"),
-    w32d2_vc_arm_1 = c("vcd_dat"),
-    w32d3_vc_arm_1 = c("vcd_dat"),
-    w32d4_vc_arm_1 = c("vcd_dat"),
-    w33d1_vc_arm_1 = c("vcd_dat"),
-    w33d2_vc_arm_1 = c("vcd_dat"),
-    w33d3_vc_arm_1 = c("vcd_dat"),
-    w33d4_vc_arm_1 = c("vcd_dat"),
-    w34d1_vc_arm_1 = c("vcd_dat"),
-    w34d2_vc_arm_1 = c("vcd_dat"),
-    w34d3_vc_arm_1 = c("vcd_dat"),
-    w34d4_vc_arm_1 = c("vcd_dat"),
-    w35d1_vc_arm_1 = c("vcd_dat"),
-    w35d2_vc_arm_1 = c("vcd_dat"),
-    w35d3_vc_arm_1 = c("vcd_dat"),
-    w35d4_vc_arm_1 = c("vcd_dat"),
-    w36d1_vc_arm_1 = c("vcd_dat"),
-    w36d2_vc_arm_1 = c("vcd_dat"),
-    w36d3_vc_arm_1 = c("vcd_dat"),
-    w36d4_vc_arm_1 = c("vcd_dat"),
-    w37d1_vc_arm_1 = c("vcd_dat"),
-    w37d2_vc_arm_1 = c("vcd_dat"),
-    w37d3_vc_arm_1 = c("vcd_dat"),
-    w37d4_vc_arm_1 = c("vcd_dat"),
-    w38d1_vc_arm_1 = c("vcd_dat"),
-    w38d2_vc_arm_1 = c("vcd_dat"),
-    w38d3_vc_arm_1 = c("vcd_dat"),
-    w38d4_vc_arm_1 = c("vcd_dat"),
-    w39d1_vc_arm_1 = c("vcd_dat"),
-    w39d2_vc_arm_1 = c("vcd_dat"),
-    w39d3_vc_arm_1 = c("vcd_dat"),
-    w39d4_vc_arm_1 = c("vcd_dat"),
-    w40d1_vc_arm_1 = c("vcd_dat"),
-    w40d2_vc_arm_1 = c("vcd_dat"),
-    w40d3_vc_arm_1 = c("vcd_dat"),
-    w40d4_vc_arm_1 = c("vcd_dat"),
-    w41d1_vc_arm_1 = c("vcd_dat"),
-    w41d2_vc_arm_1 = c("vcd_dat"),
-    w41d3_vc_arm_1 = c("vcd_dat"),
-    w41d4_vc_arm_1 = c("vcd_dat"),
-    w42d1_vc_arm_1 = c("vcd_dat"),
-    w42d2_vc_arm_1 = c("vcd_dat"),
-    w42d3_vc_arm_1 = c("vcd_dat"),
-    w42d4_vc_arm_1 = c("vcd_dat"),
-    w43d1_vc_arm_1 = c("vcd_dat"),
-    w43d2_vc_arm_1 = c("vcd_dat"),
-    w43d3_vc_arm_1 = c("vcd_dat"),
-    w43d4_vc_arm_1 = c("vcd_dat"),
-    w44d1_vc_arm_1 = c("vcd_dat"),
-    w44d2_vc_arm_1 = c("vcd_dat"),
-    w44d3_vc_arm_1 = c("vcd_dat"),
-    w44d4_vc_arm_1 = c("vcd_dat"),
-    w45d1_vc_arm_1 = c("vcd_dat"),
-    w45d2_vc_arm_1 = c("vcd_dat"),
-    w45d3_vc_arm_1 = c("vcd_dat"),
-    w45d4_vc_arm_1 = c("vcd_dat"),
-    w46d1_vc_arm_1 = c("vcd_dat"),
-    w46d2_vc_arm_1 = c("vcd_dat"),
-    w46d3_vc_arm_1 = c("vcd_dat"),
-    w46d4_vc_arm_1 = c("vcd_dat"),
-    w47d1_vc_arm_1 = c("vcd_dat"),
-    w47d2_vc_arm_1 = c("vcd_dat"),
-    w47d3_vc_arm_1 = c("vcd_dat"),
-    w47d4_vc_arm_1 = c("vcd_dat"),
-    w48d1_vc_arm_1 = c("vcd_dat"),
-    w48d2_vc_arm_1 = c("vcd_dat"),
-    w48d3_vc_arm_1 = c("vcd_dat"),
-    w48d4_vc_arm_1 = c("vcd_dat")
+    # `list_builder` is a metaprogramming fxn that makes the following list:
+    #   list(
+    #     w01_tel_arm_1  = c("wkq_dat"),
+    #     w02_tel_arm_1  = c("wkq_dat"),
+    #     ...
+    #     w48_tel_arm_1  = c("wkq_dat")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ), 
+                 value = c("wkq_dat"), 
+                 prefix = "w", suffix = "_tel_arm_1"),
+    # day 1 daily video chats
+    #   list(
+    #     w01d1_vc_arm_1 = c("vcd_dat"),
+    #     w02d1_vc_arm_1 = c("vcd_dat"),
+    #     ...
+    #     w48d1_vc_arm_1 = c("vcd_dat")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("vcd_dat"),
+                 prefix = "w", suffix = "d1_vc_arm_1"),
+    # day 2 daily video chats
+    #   list(
+    #     w01d2_vc_arm_1 = c("vcd_dat"),
+    #     w02d2_vc_arm_1 = c("vcd_dat"),
+    #     ...
+    #     w48d2_vc_arm_1 = c("vcd_dat")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("vcd_dat"),
+                 prefix = "w", suffix = "d2_vc_arm_1"),
+    # day 3 daily video chats
+    #   list(
+    #     w01d3_vc_arm_1 = c("vcd_dat"),
+    #     w02d3_vc_arm_1 = c("vcd_dat"),
+    #     ...
+    #     w48d3_vc_arm_1 = c("vcd_dat")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("vcd_dat"),
+                 prefix = "w", suffix = "d3_vc_arm_1"),
+    # day 4 daily video chats
+    # `list_builder` is a metaprogramming fxn that makes the following list:
+    #   list(
+    #     w01d4_vc_arm_1 = c("vcd_dat"),
+    #     w02d4_vc_arm_1 = c("vcd_dat"),
+    #     ...
+    #     w48d4_vc_arm_1 = c("vcd_dat")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("vcd_dat"),
+                 prefix = "w", suffix = "d4_vc_arm_1")
   )
 
 stages_eq_two <- 
-  list(
+  c(
     # telephone screening
-    scrn_tel_arm_1 = c("telephone_screening_complete"),
+    list(
+      scrn_tel_arm_1 = c("telephone_screening_complete")
+    ),
     # screening visit
-    scrn_v_arm_1   = c("consent_admin_form_complete",
-                       "emergency_contact_complete",
-                       "nacc_a1_demographics_complete",
-                       "vision_test_complete",
-                       "hearing_test_complete",
-                       "nacc_moca_complete",
-                       "lubben_social_network_scale_complete",
-                       "nacc_a5_health_history_complete",
-                       "rx_norm_medication_form_complete",
-                       "nacc_b6_depression_scale_complete",
-                       "depression_safety_assessment_complete",
-                       "baseline_eligibility_form_complete",
-                       "mri_preliminary_screening_complete"),
+    list(
+      scrn_v_arm_1   = c("consent_admin_form_complete",
+                         "emergency_contact_complete",
+                         "nacc_a1_demographics_complete",
+                         "vision_test_complete",
+                         "hearing_test_complete",
+                         "nacc_moca_complete",
+                         "lubben_social_network_scale_complete",
+                         "nacc_a5_health_history_complete",
+                         "rx_norm_medication_form_complete",
+                         "nacc_b6_depression_scale_complete",
+                         "depression_safety_assessment_complete",
+                         "baseline_eligibility_form_complete",
+                         "mri_preliminary_screening_complete")
+    ),
     # baseline visit 1
-    bv1_arm_1      = c("nacc_b4_cdr_complete",
-                       "nacc_b1_physical_evaluation_complete",
-                       "nacc_c2_neuropsych_scores_complete",
-                       "neoffi_personality_inventory_complete"),
+    list(
+      bv1_arm_1      = c("nacc_b4_cdr_complete",
+                         "nacc_b1_physical_evaluation_complete",
+                         "nacc_c2_neuropsych_scores_complete",
+                         "neoffi_personality_inventory_complete")
+    ),
     # baseline clinician dx
-    bl_cdx_arm_1   = c("nacc_d1_clinician_diagnosis_complete"),
+    list(
+      bl_cdx_arm_1   = c("nacc_d1_clinician_diagnosis_complete")
+    ),
     # baseline visit 2
-    bv2_arm_1      = c("nih_toolbox_complete",
-                       "otdlr_administration_complete",
-                       "otdlr_composite_scores_complete",
-                       "family_history_of_dementia_complete",
-                       "apoe_complete"),
+    list(
+      bv2_arm_1      = c("nih_toolbox_complete",
+                         "otdlr_administration_complete",
+                         "otdlr_composite_scores_complete",
+                         "family_history_of_dementia_complete",
+                         "apoe_complete")
+    ),
     # randomization
-    admin_arm_1    = c("video_chat_randomization_form_complete"),
+    list(
+      admin_arm_1    = c("video_chat_randomization_form_complete")
+    ),
     # baseline MRI
-    bl_mri_arm_1   = c("mri_scheduling_form_complete"),
+    list(
+      bl_mri_arm_1   = c("mri_scheduling_form_complete")
+    ),
     # weekly phone calls
-    w01_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w02_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w03_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w04_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w05_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w06_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w07_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w08_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w09_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w10_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w11_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w12_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w13_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w14_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w15_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w16_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w17_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w18_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w19_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w20_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w21_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w22_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w23_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w24_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w25_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w26_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w27_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w28_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w29_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w30_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w31_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w32_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w33_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w34_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w35_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w36_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w37_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w38_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w39_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w40_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w41_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w42_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w43_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w44_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w45_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w46_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w47_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    w48_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
-    # daily video chats
-    w01d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w01d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w01d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w01d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w02d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w02d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w02d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w02d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w03d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w03d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w03d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w03d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w04d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w04d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w04d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w04d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w05d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w05d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w05d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w05d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w06d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w06d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w06d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w06d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w07d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w07d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w07d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w07d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w08d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w08d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w08d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w08d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w09d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w09d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w09d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w09d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w10d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w10d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w10d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w10d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w11d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w11d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w11d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w11d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w12d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w12d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w12d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w12d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w13d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w13d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w13d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w13d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w14d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w14d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w14d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w14d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w15d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w15d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w15d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w15d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w16d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w16d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w16d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w16d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w17d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w17d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w17d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w17d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w18d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w18d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w18d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w18d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w19d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w19d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w19d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w19d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w20d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w20d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w20d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w20d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w21d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w21d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w21d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w21d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w22d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w22d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w22d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w22d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w23d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w23d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w23d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w23d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w24d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w24d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w24d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w24d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w25d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w25d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w25d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w25d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w26d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w26d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w26d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w26d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w27d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w27d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w27d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w27d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w28d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w28d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w28d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w28d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w29d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w29d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w29d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w29d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w30d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w30d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w30d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w30d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w31d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w31d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w31d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w31d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w32d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w32d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w32d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w32d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w33d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w33d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w33d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w33d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w34d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w34d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w34d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w34d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w35d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w35d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w35d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w35d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w36d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w36d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w36d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w36d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w37d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w37d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w37d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w37d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w38d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w38d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w38d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w38d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w39d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w39d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w39d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w39d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w40d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w40d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w40d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w40d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w41d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w41d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w41d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w41d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w42d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w42d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w42d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w42d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w43d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w43d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w43d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w43d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w44d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w44d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w44d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w44d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w45d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w45d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w45d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w45d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w46d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w46d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w46d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w46d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w47d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w47d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w47d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w47d4_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w48d1_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w48d2_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w48d3_vc_arm_1 = c("video_chat_daily_form_complete"),
-    w48d4_vc_arm_1 = c("video_chat_daily_form_complete")
+    # `list_builder` is a metaprogramming fxn that makes the following list:
+    #   list(
+    #     w01_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
+    #     w02_tel_arm_1  = c("iconect_weekly_questionnaire_complete"),
+    #     ...
+    #     w48_tel_arm_1  = c("iconect_weekly_questionnaire_complete")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ), 
+                 value = c("iconect_weekly_questionnaire_complete"), 
+                 prefix = "w", suffix = "_tel_arm_1"),
+    
+    # day 1 daily video chats
+    # `list_builder` is a metaprogramming fxn that makes the following list:
+    #   list(
+    #     w01d1_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     w02d1_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     ...
+    #     w48d1_vc_arm_1 = c("video_chat_daily_form_complete")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("video_chat_daily_form_complete"),
+                 prefix = "w", suffix = "d1_vc_arm_1"),
+    # day 2 daily video chats
+    #   list(
+    #     w01d2_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     w02d2_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     ...
+    #     w48d2_vc_arm_1 = c("video_chat_daily_form_complete")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("video_chat_daily_form_complete"),
+                 prefix = "w", suffix = "d2_vc_arm_1"),
+    # day 3 daily video chats
+    #   list(
+    #     w01d3_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     w02d3_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     ...
+    #     w48d3_vc_arm_1 = c("video_chat_daily_form_complete")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("video_chat_daily_form_complete"),
+                 prefix = "w", suffix = "d3_vc_arm_1"),
+    # day 4 daily video chats
+    #   list(
+    #     w01d4_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     w02d4_vc_arm_1 = c("video_chat_daily_form_complete"),
+    #     ...
+    #     w48d4_vc_arm_1 = c("video_chat_daily_form_complete")
+    #   )
+    list_builder(vctr = 
+                   paste0(
+                     strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+                     week_vctr
+                   ),
+                 value = c("video_chat_daily_form_complete"),
+                 prefix = "w", suffix = "d4_vc_arm_1")
   )
 
 # Get a specific value from the supplied dataframe
@@ -1464,72 +1164,72 @@ data_summ <- data_dstl %>%
     # ts_pfn,
     # ts_lln,
     stage_comp = case_when(
-    # weekly telephone
-    w48_tel_date  & w48_tel_comp  ~ "w48_tel",
-    w47_tel_date  & w47_tel_comp  ~ "w47_tel",
-    w46_tel_date  & w46_tel_comp  ~ "w46_tel",
-    w45_tel_date  & w45_tel_comp  ~ "w45_tel",
-    w44_tel_date  & w44_tel_comp  ~ "w44_tel",
-    w43_tel_date  & w43_tel_comp  ~ "w43_tel",
-    w42_tel_date  & w42_tel_comp  ~ "w42_tel",
-    w41_tel_date  & w41_tel_comp  ~ "w41_tel",
-    w40_tel_date  & w40_tel_comp  ~ "w40_tel",
-    w39_tel_date  & w39_tel_comp  ~ "w39_tel",
-    w38_tel_date  & w38_tel_comp  ~ "w38_tel",
-    w37_tel_date  & w37_tel_comp  ~ "w37_tel",
-    w36_tel_date  & w36_tel_comp  ~ "w36_tel",
-    w35_tel_date  & w35_tel_comp  ~ "w35_tel",
-    w34_tel_date  & w34_tel_comp  ~ "w34_tel",
-    w33_tel_date  & w33_tel_comp  ~ "w33_tel",
-    w32_tel_date  & w32_tel_comp  ~ "w32_tel",
-    w31_tel_date  & w31_tel_comp  ~ "w31_tel",
-    w30_tel_date  & w30_tel_comp  ~ "w30_tel",
-    w29_tel_date  & w29_tel_comp  ~ "w29_tel",
-    w28_tel_date  & w28_tel_comp  ~ "w28_tel",
-    w27_tel_date  & w27_tel_comp  ~ "w27_tel",
-    w26_tel_date  & w26_tel_comp  ~ "w26_tel",
-    w25_tel_date  & w25_tel_comp  ~ "w25_tel",
-    w24_tel_date  & w24_tel_comp  ~ "w24_tel",
-    w23_tel_date  & w23_tel_comp  ~ "w23_tel",
-    w22_tel_date  & w22_tel_comp  ~ "w22_tel",
-    w21_tel_date  & w21_tel_comp  ~ "w21_tel",
-    w20_tel_date  & w20_tel_comp  ~ "w20_tel",
-    w19_tel_date  & w19_tel_comp  ~ "w19_tel",
-    w18_tel_date  & w18_tel_comp  ~ "w18_tel",
-    w17_tel_date  & w17_tel_comp  ~ "w17_tel",
-    w16_tel_date  & w16_tel_comp  ~ "w16_tel",
-    w15_tel_date  & w15_tel_comp  ~ "w15_tel",
-    w14_tel_date  & w14_tel_comp  ~ "w14_tel",
-    w13_tel_date  & w13_tel_comp  ~ "w13_tel",
-    w12_tel_date  & w12_tel_comp  ~ "w12_tel",
-    w11_tel_date  & w11_tel_comp  ~ "w11_tel",
-    w10_tel_date  & w10_tel_comp  ~ "w10_tel",
-    w09_tel_date  & w09_tel_comp  ~ "w09_tel",
-    w08_tel_date  & w08_tel_comp  ~ "w08_tel",
-    w07_tel_date  & w07_tel_comp  ~ "w07_tel",
-    w06_tel_date  & w06_tel_comp  ~ "w06_tel",
-    w05_tel_date  & w05_tel_comp  ~ "w05_tel",
-    w04_tel_date  & w04_tel_comp  ~ "w04_tel",
-    w03_tel_date  & w03_tel_comp  ~ "w03_tel",
-    w02_tel_date  & w02_tel_comp  ~ "w02_tel",
-    w01_tel_date  & w01_tel_comp  ~ "w01_tel",
-    # baseline MRI
-    bl_mri_date   & bl_mri_comp   ~ "bl_mri",
-    # randomization
-    admin_comp    ~ "admin",   # admin_date is NA
-    # baseline visit 2
-    bv2_date      & bv2_comp      ~ "bv2",
-    # baseline clinician dx
-    bl_cdx_date   & bl_cdx_comp   ~ "bl_cdx",
-    # baseline visit 1
-    bv1_date      & bv1_comp      ~ "bv1",
-    # screening visit
-    scrn_v_date   & scrn_v_comp   ~ "scrn_v",
-    # telephone screening
-    scrn_tel_date & scrn_tel_comp ~ "scrn_tel",
-    # catch-all
-    TRUE ~ NA_character_
-  )) %>% 
+      # weekly telephone
+      w48_tel_date  & w48_tel_comp  ~ "w48_tel",
+      w47_tel_date  & w47_tel_comp  ~ "w47_tel",
+      w46_tel_date  & w46_tel_comp  ~ "w46_tel",
+      w45_tel_date  & w45_tel_comp  ~ "w45_tel",
+      w44_tel_date  & w44_tel_comp  ~ "w44_tel",
+      w43_tel_date  & w43_tel_comp  ~ "w43_tel",
+      w42_tel_date  & w42_tel_comp  ~ "w42_tel",
+      w41_tel_date  & w41_tel_comp  ~ "w41_tel",
+      w40_tel_date  & w40_tel_comp  ~ "w40_tel",
+      w39_tel_date  & w39_tel_comp  ~ "w39_tel",
+      w38_tel_date  & w38_tel_comp  ~ "w38_tel",
+      w37_tel_date  & w37_tel_comp  ~ "w37_tel",
+      w36_tel_date  & w36_tel_comp  ~ "w36_tel",
+      w35_tel_date  & w35_tel_comp  ~ "w35_tel",
+      w34_tel_date  & w34_tel_comp  ~ "w34_tel",
+      w33_tel_date  & w33_tel_comp  ~ "w33_tel",
+      w32_tel_date  & w32_tel_comp  ~ "w32_tel",
+      w31_tel_date  & w31_tel_comp  ~ "w31_tel",
+      w30_tel_date  & w30_tel_comp  ~ "w30_tel",
+      w29_tel_date  & w29_tel_comp  ~ "w29_tel",
+      w28_tel_date  & w28_tel_comp  ~ "w28_tel",
+      w27_tel_date  & w27_tel_comp  ~ "w27_tel",
+      w26_tel_date  & w26_tel_comp  ~ "w26_tel",
+      w25_tel_date  & w25_tel_comp  ~ "w25_tel",
+      w24_tel_date  & w24_tel_comp  ~ "w24_tel",
+      w23_tel_date  & w23_tel_comp  ~ "w23_tel",
+      w22_tel_date  & w22_tel_comp  ~ "w22_tel",
+      w21_tel_date  & w21_tel_comp  ~ "w21_tel",
+      w20_tel_date  & w20_tel_comp  ~ "w20_tel",
+      w19_tel_date  & w19_tel_comp  ~ "w19_tel",
+      w18_tel_date  & w18_tel_comp  ~ "w18_tel",
+      w17_tel_date  & w17_tel_comp  ~ "w17_tel",
+      w16_tel_date  & w16_tel_comp  ~ "w16_tel",
+      w15_tel_date  & w15_tel_comp  ~ "w15_tel",
+      w14_tel_date  & w14_tel_comp  ~ "w14_tel",
+      w13_tel_date  & w13_tel_comp  ~ "w13_tel",
+      w12_tel_date  & w12_tel_comp  ~ "w12_tel",
+      w11_tel_date  & w11_tel_comp  ~ "w11_tel",
+      w10_tel_date  & w10_tel_comp  ~ "w10_tel",
+      w09_tel_date  & w09_tel_comp  ~ "w09_tel",
+      w08_tel_date  & w08_tel_comp  ~ "w08_tel",
+      w07_tel_date  & w07_tel_comp  ~ "w07_tel",
+      w06_tel_date  & w06_tel_comp  ~ "w06_tel",
+      w05_tel_date  & w05_tel_comp  ~ "w05_tel",
+      w04_tel_date  & w04_tel_comp  ~ "w04_tel",
+      w03_tel_date  & w03_tel_comp  ~ "w03_tel",
+      w02_tel_date  & w02_tel_comp  ~ "w02_tel",
+      w01_tel_date  & w01_tel_comp  ~ "w01_tel",
+      # baseline MRI
+      bl_mri_date   & bl_mri_comp   ~ "bl_mri",
+      # randomization
+      admin_comp    ~ "admin",   # admin_date is NA
+      # baseline visit 2
+      bv2_date      & bv2_comp      ~ "bv2",
+      # baseline clinician dx
+      bl_cdx_date   & bl_cdx_comp   ~ "bl_cdx",
+      # baseline visit 1
+      bv1_date      & bv1_comp      ~ "bv1",
+      # screening visit
+      scrn_v_date   & scrn_v_comp   ~ "scrn_v",
+      # telephone screening
+      scrn_tel_date & scrn_tel_comp ~ "scrn_tel",
+      # catch-all
+      TRUE ~ NA_character_
+    )) %>% 
   mutate(
     stage_next = case_when(
       is.na(stage_comp)        ~ "scrn_tel",

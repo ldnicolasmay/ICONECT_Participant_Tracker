@@ -1,5 +1,6 @@
 
 library(dplyr)
+library(rlang)
 
 # Goal create a list that looks like this ...
 
@@ -87,8 +88,36 @@ some_fxn_r(prefix = "thing_",
            suffix = "_blah", 
            value = c("qux"))
 
+microbenchmark::microbenchmark(
+  blah_f <- some_fxn(prefix = "prefix_",
+                    infix_vctr = 1:2000,
+                    suffix = "_suffix",
+                    value = 1:100),
+  blah_r <- some_fxn_r(prefix = "prefix_",
+                       infix_vctr = 1:2000,
+                       suffix = "_suffix",
+                       value = 1:100),
+  times = 50
+)
 
+paste0("0", 1:20)
+some_fxn <- function(vctr, length = max(nchar(vctr)), filler = "") {
+  print(length)
+  paste0("0", vctr)
+}
+some_fxn(1:20)
+some_fxn(1:20, 3L)
+some_fxn(1:20, 4L, "0")
 
+strrep("0", max(nchar(1:20))-nchar(1:20))
+paste0(strrep("0", max(nchar(1:20))-nchar(1:20)), 1:20)
+
+# paste0("UM", 
+#        strrep("0", 8L - nchar(1:20)), 
+#        "UDS_ID")
+strrep("ABC", 2)
+strrep(c("A", "B", "C"), 1:3)
+strrep("c", 1:5)
 
 library(rlang)
 library(lobstr)
