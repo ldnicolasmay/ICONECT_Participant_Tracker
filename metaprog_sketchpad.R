@@ -90,9 +90,9 @@ some_fxn_r(prefix = "thing_",
 
 microbenchmark::microbenchmark(
   blah_f <- some_fxn(prefix = "prefix_",
-                    infix_vctr = 1:2000,
-                    suffix = "_suffix",
-                    value = 1:100),
+                     infix_vctr = 1:2000,
+                     suffix = "_suffix",
+                     value = 1:100),
   blah_r <- some_fxn_r(prefix = "prefix_",
                        infix_vctr = 1:2000,
                        suffix = "_suffix",
@@ -175,7 +175,53 @@ cv <- function(var) {
 cv(x)
 cv(x + y)
 
+paste0(
+  strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+  week_vctr
+)
 
+build_distilled_row <- function(uniq_id, df) {
+  
+  ts_sub_id = uniq_id
+  
+  week_vctr = 1:10
+  week_vctr = 
+    paste0(
+      strrep("0", max(nchar(week_vctr))-nchar(week_vctr)), 
+      week_vctr
+    )
+  
+  # Left Hand SideS
+  lhss = paste0("w", week_vctr, "_tel_date")
+  syms_lhss = syms(lhss)
+  # print(eval_tidy(syms(lhss)))
+  
+  # Right Hand Side ArgumentS
+  rhss_args = paste0("w", week_vctr, "_tel_arm_1")
+  syms_rhss_args = syms(rhss_args)
+  # print(eval_tidy(syms(rhss_args)))
+  
+  # for (i in week_vctr) {
+  #   cat(paste0("w", i, "tel_date", 
+  #              " = ",
+  #              "date_fields_complete(",
+  #              "uniq_id", ", ",
+  #              "\"w", i, "_tel_arm_1\"", ", ",
+  #              "df",
+  #              ")", 
+  #              "\n"))
+  # }
+  
+  # for (i in week_vctr) {
+  #   
+  # }
+  
+  list2(
+    !!syms_lhss := date_fields_complete(ts_sub_id, "w01_tel_arm_1", df)
+  )
+}
+
+build_distilled_row(uniq_ids[1], data_slct_fltr_cln)
 
 
 

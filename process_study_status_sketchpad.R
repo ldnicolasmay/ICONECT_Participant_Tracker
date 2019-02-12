@@ -1,8 +1,11 @@
 # process_study_status.R
 
-library(data.table)
 library(dplyr)
 library(stringr)
+library(rlang)
+
+
+# Script-internal helper fxns ----
 
 # Metaprogramming fxn that builds lists for iteratively numbered field names
 list_builder <- function(vctr, value, prefix = "", suffix = "") {
@@ -15,8 +18,49 @@ list_builder <- function(vctr, value, prefix = "", suffix = "") {
     list_builder(vctr[2:length(vctr)], value, prefix, suffix))
 }
 
+# Get a specific value from the supplied dataframe
+get_value <- function(uniq_id, redcap_event_name, field, df) {
+  value = unlist(
+    df[df$ts_sub_id == uniq_id &
+         df$redcap_event_name == redcap_event_name,
+       field]
+  )
+  
+  ifelse(length(value) > 0, value, NA_character_)
+}
+
+# Checks if all date fields from redcap_event_name row for a given pt. ID
+# are not NA in the supplied dataframe
+date_fields_complete <- function(uniq_id, redcap_event_name, df) {
+  categ_date =
+    df[df[["ts_sub_id"]] == uniq_id &
+         df[["redcap_event_name"]] == redcap_event_name,
+       stages_not_is_na[[redcap_event_name]]]
+  categ_date = unlist(categ_date)
+  
+  ifelse(length(categ_date) > 0,
+         all(!is.na(categ_date)),
+         FALSE)
+}
+
+# Checks if all form_compete fields fields from redcap_event_name row 
+# for a given pt. ID are complete in the supplied dataframe
+form_fields_complete <- function(uniq_id, redcap_event_name, df) {
+  categ_comp =
+    df[df[["ts_sub_id"]] == uniq_id &
+         df[["redcap_event_name"]] == redcap_event_name,
+       stages_eq_two[[redcap_event_name]]]
+  categ_comp = unlist(categ_comp)
+  ifelse(length(categ_comp) > 0,
+         all(categ_comp == 2),
+         FALSE)
+}
+
+
+# GET DATA ----
+
 # Load all data
-data <- data.table::fread("OCTRI5793Internetbas_DATA_2019-01-26_0908.csv",
+data <- data.table::fread("OCTRI5793Internetbas_DATA_2019-02-12_0726.csv",
                           na.strings = "")
 # print(object.size(data), units = "auto")
 # unique(purrr::map_chr(data, class))
@@ -35,6 +79,10 @@ data_slct <- data %>%
 #   distinct(ts_sub_id) %>% 
 #   pull()
 
+
+
+# PROCESS DATA ----
+
 # Get UM site IDs only
 data_slct_fltr <- data_slct %>% 
   filter(str_detect(ts_sub_id, pattern = "^C2\\d{3}$"))
@@ -49,7 +97,10 @@ data_slct_fltr <- data_slct %>%
 
 # Coerce fields to appropriate type
 data_slct_fltr_1 <- data_slct_fltr %>% 
-  select(ts_sub_id, redcap_event_name, ts_lfn, ts_pfn, ts_lln)
+  select(ts_sub_id
+         , redcap_event_name
+         # , ts_lfn, ts_pfn, ts_lln
+         )
 data_slct_fltr_2 <- data_slct_fltr %>% 
   select(ends_with("_dat"), ends_with("_dtc"), ends_with("date"))
 data_slct_fltr_3 <- data_slct_fltr %>% 
@@ -77,12 +128,12 @@ week_vctr <- 1:48
 
 stages_not_is_na <- 
   c(
-    list(
       # telephone screening
+    list(
       scrn_tel_arm_1 = c("ts_dat")
     ),
-    list(
       # home screening
+    list(
       scrn_v_arm_1   = c("con_dtc",
                          "em_dat",
                          "dem_dat",
@@ -97,28 +148,30 @@ stages_not_is_na <-
                          "elg_dat",
                          "mrp_dat")
     ),
-    list(
       # baseline visit 1
+    list(
       bv1_arm_1      = c("cdr_dat",
                          "phy_dat",
                          "c2_dat",
                          "neo_dat")
     ),
-    list(
       # baseline clinician dx
-      bl_cdx_arm_1   = c("d1_dat"),
+    list(
+      bl_cdx_arm_1   = c("d1_dat")
+    ),
       # baseline visit 2
+    list(
       bv2_arm_1      = c("date",
                          "otd_dat",
                          "fhd_dat",
                          "ap_dat")
     ),
-    list(
       # randomization
+    list(
       admin_arm_1    = character(0) # No dates for video chat randomization
     ),
+    # baseline MRI
     list(
-      # baseline MRI
       bl_mri_arm_1   = c("mrs_dat")
     ),
     # weekly phone calls
@@ -196,12 +249,12 @@ stages_not_is_na <-
   )
 
 stages_eq_two <- 
-  c(
     # telephone screening
+  c(
     list(
       scrn_tel_arm_1 = c("telephone_screening_complete")
-    ),
     # screening visit
+    ),
     list(
       scrn_v_arm_1   = c("consent_admin_form_complete",
                          "emergency_contact_complete",
@@ -319,43 +372,7 @@ stages_eq_two <-
                  prefix = "w", suffix = "d4_vc_arm_1")
   )
 
-# Get a specific value from the supplied dataframe
-get_value <- function(uniq_id, redcap_event_name, field, df) {
-  value = unlist(
-    df[df$ts_sub_id == uniq_id &
-         df$redcap_event_name == redcap_event_name,
-       field]
-  )
-  
-  ifelse(length(value) > 0, value, NA_character_)
-}
 
-# Checks if all date fields from redcap_event_name row for a given pt. ID
-# are not NA in the supplied dataframe
-date_fields_complete <- function(uniq_id, redcap_event_name, df) {
-  categ_date =
-    df[df[["ts_sub_id"]] == uniq_id &
-         df[["redcap_event_name"]] == redcap_event_name,
-       stages_not_is_na[[redcap_event_name]]]
-  categ_date = unlist(categ_date)
-  
-  ifelse(length(categ_date) > 0,
-         all(!is.na(categ_date)),
-         FALSE)
-}
-
-# Checks if all form_compete fields fields from redcap_event_name row 
-# for a given pt. ID are complete in the supplied dataframe
-form_fields_complete <- function(uniq_id, redcap_event_name, df) {
-  categ_comp =
-    df[df[["ts_sub_id"]] == uniq_id &
-         df[["redcap_event_name"]] == redcap_event_name,
-       stages_eq_two[[redcap_event_name]]]
-  categ_comp = unlist(categ_comp)
-  ifelse(length(categ_comp) > 0,
-         all(categ_comp == 2),
-         FALSE)
-}
 
 build_distilled_row <- function(uniq_id, df) {
   
@@ -540,438 +557,438 @@ build_distilled_row <- function(uniq_id, df) {
   w48_tel_date = date_fields_complete(uniq_id, "w48_tel_arm_1", df)
   w48_tel_comp = form_fields_complete(uniq_id, "w48_tel_arm_1", df)
   
-  # week 01 video chat
-  w01d1_vc_date = date_fields_complete(uniq_id, "w01d1_vc_arm_1", df)
-  w01d2_vc_date = date_fields_complete(uniq_id, "w01d2_vc_arm_1", df)
-  w01d3_vc_date = date_fields_complete(uniq_id, "w01d3_vc_arm_1", df)
-  w01d4_vc_date = date_fields_complete(uniq_id, "w01d4_vc_arm_1", df)
-  w01d1_vc_comp = form_fields_complete(uniq_id, "w01d1_vc_arm_1", df)
-  w01d2_vc_comp = form_fields_complete(uniq_id, "w01d2_vc_arm_1", df)
-  w01d3_vc_comp = form_fields_complete(uniq_id, "w01d3_vc_arm_1", df)
-  w01d4_vc_comp = form_fields_complete(uniq_id, "w01d4_vc_arm_1", df)
-  # week 02 video chat
-  w02d1_vc_date = date_fields_complete(uniq_id, "w02d1_vc_arm_1", df)
-  w02d2_vc_date = date_fields_complete(uniq_id, "w02d2_vc_arm_1", df)
-  w02d3_vc_date = date_fields_complete(uniq_id, "w02d3_vc_arm_1", df)
-  w02d4_vc_date = date_fields_complete(uniq_id, "w02d4_vc_arm_1", df)
-  w02d1_vc_comp = form_fields_complete(uniq_id, "w02d1_vc_arm_1", df)
-  w02d2_vc_comp = form_fields_complete(uniq_id, "w02d2_vc_arm_1", df)
-  w02d3_vc_comp = form_fields_complete(uniq_id, "w02d3_vc_arm_1", df)
-  w02d4_vc_comp = form_fields_complete(uniq_id, "w02d4_vc_arm_1", df)
-  # week 03 video chat
-  w03d1_vc_date = date_fields_complete(uniq_id, "w03d1_vc_arm_1", df)
-  w03d2_vc_date = date_fields_complete(uniq_id, "w03d2_vc_arm_1", df)
-  w03d3_vc_date = date_fields_complete(uniq_id, "w03d3_vc_arm_1", df)
-  w03d4_vc_date = date_fields_complete(uniq_id, "w03d4_vc_arm_1", df)
-  w03d1_vc_comp = form_fields_complete(uniq_id, "w03d1_vc_arm_1", df)
-  w03d2_vc_comp = form_fields_complete(uniq_id, "w03d2_vc_arm_1", df)
-  w03d3_vc_comp = form_fields_complete(uniq_id, "w03d3_vc_arm_1", df)
-  w03d4_vc_comp = form_fields_complete(uniq_id, "w03d4_vc_arm_1", df)
-  # week 04 video chat
-  w04d1_vc_date = date_fields_complete(uniq_id, "w04d1_vc_arm_1", df)
-  w04d2_vc_date = date_fields_complete(uniq_id, "w04d2_vc_arm_1", df)
-  w04d3_vc_date = date_fields_complete(uniq_id, "w04d3_vc_arm_1", df)
-  w04d4_vc_date = date_fields_complete(uniq_id, "w04d4_vc_arm_1", df)
-  w04d1_vc_comp = form_fields_complete(uniq_id, "w04d1_vc_arm_1", df)
-  w04d2_vc_comp = form_fields_complete(uniq_id, "w04d2_vc_arm_1", df)
-  w04d3_vc_comp = form_fields_complete(uniq_id, "w04d3_vc_arm_1", df)
-  w04d4_vc_comp = form_fields_complete(uniq_id, "w04d4_vc_arm_1", df)
-  # week 05 video chat
-  w05d1_vc_date = date_fields_complete(uniq_id, "w05d1_vc_arm_1", df)
-  w05d2_vc_date = date_fields_complete(uniq_id, "w05d2_vc_arm_1", df)
-  w05d3_vc_date = date_fields_complete(uniq_id, "w05d3_vc_arm_1", df)
-  w05d4_vc_date = date_fields_complete(uniq_id, "w05d4_vc_arm_1", df)
-  w05d1_vc_comp = form_fields_complete(uniq_id, "w05d1_vc_arm_1", df)
-  w05d2_vc_comp = form_fields_complete(uniq_id, "w05d2_vc_arm_1", df)
-  w05d3_vc_comp = form_fields_complete(uniq_id, "w05d3_vc_arm_1", df)
-  w05d4_vc_comp = form_fields_complete(uniq_id, "w05d4_vc_arm_1", df)
-  # week 06 video chat
-  w06d1_vc_date = date_fields_complete(uniq_id, "w06d1_vc_arm_1", df)
-  w06d2_vc_date = date_fields_complete(uniq_id, "w06d2_vc_arm_1", df)
-  w06d3_vc_date = date_fields_complete(uniq_id, "w06d3_vc_arm_1", df)
-  w06d4_vc_date = date_fields_complete(uniq_id, "w06d4_vc_arm_1", df)
-  w06d1_vc_comp = form_fields_complete(uniq_id, "w06d1_vc_arm_1", df)
-  w06d2_vc_comp = form_fields_complete(uniq_id, "w06d2_vc_arm_1", df)
-  w06d3_vc_comp = form_fields_complete(uniq_id, "w06d3_vc_arm_1", df)
-  w06d4_vc_comp = form_fields_complete(uniq_id, "w06d4_vc_arm_1", df)
-  # week 07 video chat
-  w07d1_vc_date = date_fields_complete(uniq_id, "w07d1_vc_arm_1", df)
-  w07d2_vc_date = date_fields_complete(uniq_id, "w07d2_vc_arm_1", df)
-  w07d3_vc_date = date_fields_complete(uniq_id, "w07d3_vc_arm_1", df)
-  w07d4_vc_date = date_fields_complete(uniq_id, "w07d4_vc_arm_1", df)
-  w07d1_vc_comp = form_fields_complete(uniq_id, "w07d1_vc_arm_1", df)
-  w07d2_vc_comp = form_fields_complete(uniq_id, "w07d2_vc_arm_1", df)
-  w07d3_vc_comp = form_fields_complete(uniq_id, "w07d3_vc_arm_1", df)
-  w07d4_vc_comp = form_fields_complete(uniq_id, "w07d4_vc_arm_1", df)
-  # week 08 video chat
-  w08d1_vc_date = date_fields_complete(uniq_id, "w08d1_vc_arm_1", df)
-  w08d2_vc_date = date_fields_complete(uniq_id, "w08d2_vc_arm_1", df)
-  w08d3_vc_date = date_fields_complete(uniq_id, "w08d3_vc_arm_1", df)
-  w08d4_vc_date = date_fields_complete(uniq_id, "w08d4_vc_arm_1", df)
-  w08d1_vc_comp = form_fields_complete(uniq_id, "w08d1_vc_arm_1", df)
-  w08d2_vc_comp = form_fields_complete(uniq_id, "w08d2_vc_arm_1", df)
-  w08d3_vc_comp = form_fields_complete(uniq_id, "w08d3_vc_arm_1", df)
-  w08d4_vc_comp = form_fields_complete(uniq_id, "w08d4_vc_arm_1", df)
-  # week 09 video chat
-  w09d1_vc_date = date_fields_complete(uniq_id, "w09d1_vc_arm_1", df)
-  w09d2_vc_date = date_fields_complete(uniq_id, "w09d2_vc_arm_1", df)
-  w09d3_vc_date = date_fields_complete(uniq_id, "w09d3_vc_arm_1", df)
-  w09d4_vc_date = date_fields_complete(uniq_id, "w09d4_vc_arm_1", df)
-  w09d1_vc_comp = form_fields_complete(uniq_id, "w09d1_vc_arm_1", df)
-  w09d2_vc_comp = form_fields_complete(uniq_id, "w09d2_vc_arm_1", df)
-  w09d3_vc_comp = form_fields_complete(uniq_id, "w09d3_vc_arm_1", df)
-  w09d4_vc_comp = form_fields_complete(uniq_id, "w09d4_vc_arm_1", df)
-  # week 010 video chat
-  w10d1_vc_date = date_fields_complete(uniq_id, "w10d1_vc_arm_1", df)
-  w10d2_vc_date = date_fields_complete(uniq_id, "w10d2_vc_arm_1", df)
-  w10d3_vc_date = date_fields_complete(uniq_id, "w10d3_vc_arm_1", df)
-  w10d4_vc_date = date_fields_complete(uniq_id, "w10d4_vc_arm_1", df)
-  w10d1_vc_comp = form_fields_complete(uniq_id, "w10d1_vc_arm_1", df)
-  w10d2_vc_comp = form_fields_complete(uniq_id, "w10d2_vc_arm_1", df)
-  w10d3_vc_comp = form_fields_complete(uniq_id, "w10d3_vc_arm_1", df)
-  w10d4_vc_comp = form_fields_complete(uniq_id, "w10d4_vc_arm_1", df)
-  # week 011 video chat
-  w11d1_vc_date = date_fields_complete(uniq_id, "w11d1_vc_arm_1", df)
-  w11d2_vc_date = date_fields_complete(uniq_id, "w11d2_vc_arm_1", df)
-  w11d3_vc_date = date_fields_complete(uniq_id, "w11d3_vc_arm_1", df)
-  w11d4_vc_date = date_fields_complete(uniq_id, "w11d4_vc_arm_1", df)
-  w11d1_vc_comp = form_fields_complete(uniq_id, "w11d1_vc_arm_1", df)
-  w11d2_vc_comp = form_fields_complete(uniq_id, "w11d2_vc_arm_1", df)
-  w11d3_vc_comp = form_fields_complete(uniq_id, "w11d3_vc_arm_1", df)
-  w11d4_vc_comp = form_fields_complete(uniq_id, "w11d4_vc_arm_1", df)
-  # week 012 video chat
-  w12d1_vc_date = date_fields_complete(uniq_id, "w12d1_vc_arm_1", df)
-  w12d2_vc_date = date_fields_complete(uniq_id, "w12d2_vc_arm_1", df)
-  w12d3_vc_date = date_fields_complete(uniq_id, "w12d3_vc_arm_1", df)
-  w12d4_vc_date = date_fields_complete(uniq_id, "w12d4_vc_arm_1", df)
-  w12d1_vc_comp = form_fields_complete(uniq_id, "w12d1_vc_arm_1", df)
-  w12d2_vc_comp = form_fields_complete(uniq_id, "w12d2_vc_arm_1", df)
-  w12d3_vc_comp = form_fields_complete(uniq_id, "w12d3_vc_arm_1", df)
-  w12d4_vc_comp = form_fields_complete(uniq_id, "w12d4_vc_arm_1", df)
-  # week 013 video chat
-  w13d1_vc_date = date_fields_complete(uniq_id, "w13d1_vc_arm_1", df)
-  w13d2_vc_date = date_fields_complete(uniq_id, "w13d2_vc_arm_1", df)
-  w13d3_vc_date = date_fields_complete(uniq_id, "w13d3_vc_arm_1", df)
-  w13d4_vc_date = date_fields_complete(uniq_id, "w13d4_vc_arm_1", df)
-  w13d1_vc_comp = form_fields_complete(uniq_id, "w13d1_vc_arm_1", df)
-  w13d2_vc_comp = form_fields_complete(uniq_id, "w13d2_vc_arm_1", df)
-  w13d3_vc_comp = form_fields_complete(uniq_id, "w13d3_vc_arm_1", df)
-  w13d4_vc_comp = form_fields_complete(uniq_id, "w13d4_vc_arm_1", df)
-  # week 014 video chat
-  w14d1_vc_date = date_fields_complete(uniq_id, "w14d1_vc_arm_1", df)
-  w14d2_vc_date = date_fields_complete(uniq_id, "w14d2_vc_arm_1", df)
-  w14d3_vc_date = date_fields_complete(uniq_id, "w14d3_vc_arm_1", df)
-  w14d4_vc_date = date_fields_complete(uniq_id, "w14d4_vc_arm_1", df)
-  w14d1_vc_comp = form_fields_complete(uniq_id, "w14d1_vc_arm_1", df)
-  w14d2_vc_comp = form_fields_complete(uniq_id, "w14d2_vc_arm_1", df)
-  w14d3_vc_comp = form_fields_complete(uniq_id, "w14d3_vc_arm_1", df)
-  w14d4_vc_comp = form_fields_complete(uniq_id, "w14d4_vc_arm_1", df)
-  # week 015 video chat
-  w15d1_vc_date = date_fields_complete(uniq_id, "w15d1_vc_arm_1", df)
-  w15d2_vc_date = date_fields_complete(uniq_id, "w15d2_vc_arm_1", df)
-  w15d3_vc_date = date_fields_complete(uniq_id, "w15d3_vc_arm_1", df)
-  w15d4_vc_date = date_fields_complete(uniq_id, "w15d4_vc_arm_1", df)
-  w15d1_vc_comp = form_fields_complete(uniq_id, "w15d1_vc_arm_1", df)
-  w15d2_vc_comp = form_fields_complete(uniq_id, "w15d2_vc_arm_1", df)
-  w15d3_vc_comp = form_fields_complete(uniq_id, "w15d3_vc_arm_1", df)
-  w15d4_vc_comp = form_fields_complete(uniq_id, "w15d4_vc_arm_1", df)
-  # week 016 video chat
-  w16d1_vc_date = date_fields_complete(uniq_id, "w16d1_vc_arm_1", df)
-  w16d2_vc_date = date_fields_complete(uniq_id, "w16d2_vc_arm_1", df)
-  w16d3_vc_date = date_fields_complete(uniq_id, "w16d3_vc_arm_1", df)
-  w16d4_vc_date = date_fields_complete(uniq_id, "w16d4_vc_arm_1", df)
-  w16d1_vc_comp = form_fields_complete(uniq_id, "w16d1_vc_arm_1", df)
-  w16d2_vc_comp = form_fields_complete(uniq_id, "w16d2_vc_arm_1", df)
-  w16d3_vc_comp = form_fields_complete(uniq_id, "w16d3_vc_arm_1", df)
-  w16d4_vc_comp = form_fields_complete(uniq_id, "w16d4_vc_arm_1", df)
-  # week 017 video chat
-  w17d1_vc_date = date_fields_complete(uniq_id, "w17d1_vc_arm_1", df)
-  w17d2_vc_date = date_fields_complete(uniq_id, "w17d2_vc_arm_1", df)
-  w17d3_vc_date = date_fields_complete(uniq_id, "w17d3_vc_arm_1", df)
-  w17d4_vc_date = date_fields_complete(uniq_id, "w17d4_vc_arm_1", df)
-  w17d1_vc_comp = form_fields_complete(uniq_id, "w17d1_vc_arm_1", df)
-  w17d2_vc_comp = form_fields_complete(uniq_id, "w17d2_vc_arm_1", df)
-  w17d3_vc_comp = form_fields_complete(uniq_id, "w17d3_vc_arm_1", df)
-  w17d4_vc_comp = form_fields_complete(uniq_id, "w17d4_vc_arm_1", df)
-  # week 018 video chat
-  w18d1_vc_date = date_fields_complete(uniq_id, "w18d1_vc_arm_1", df)
-  w18d2_vc_date = date_fields_complete(uniq_id, "w18d2_vc_arm_1", df)
-  w18d3_vc_date = date_fields_complete(uniq_id, "w18d3_vc_arm_1", df)
-  w18d4_vc_date = date_fields_complete(uniq_id, "w18d4_vc_arm_1", df)
-  w18d1_vc_comp = form_fields_complete(uniq_id, "w18d1_vc_arm_1", df)
-  w18d2_vc_comp = form_fields_complete(uniq_id, "w18d2_vc_arm_1", df)
-  w18d3_vc_comp = form_fields_complete(uniq_id, "w18d3_vc_arm_1", df)
-  w18d4_vc_comp = form_fields_complete(uniq_id, "w18d4_vc_arm_1", df)
-  # week 019 video chat
-  w19d1_vc_date = date_fields_complete(uniq_id, "w19d1_vc_arm_1", df)
-  w19d2_vc_date = date_fields_complete(uniq_id, "w19d2_vc_arm_1", df)
-  w19d3_vc_date = date_fields_complete(uniq_id, "w19d3_vc_arm_1", df)
-  w19d4_vc_date = date_fields_complete(uniq_id, "w19d4_vc_arm_1", df)
-  w19d1_vc_comp = form_fields_complete(uniq_id, "w19d1_vc_arm_1", df)
-  w19d2_vc_comp = form_fields_complete(uniq_id, "w19d2_vc_arm_1", df)
-  w19d3_vc_comp = form_fields_complete(uniq_id, "w19d3_vc_arm_1", df)
-  w19d4_vc_comp = form_fields_complete(uniq_id, "w19d4_vc_arm_1", df)
-  # week 020 video chat
-  w20d1_vc_date = date_fields_complete(uniq_id, "w20d1_vc_arm_1", df)
-  w20d2_vc_date = date_fields_complete(uniq_id, "w20d2_vc_arm_1", df)
-  w20d3_vc_date = date_fields_complete(uniq_id, "w20d3_vc_arm_1", df)
-  w20d4_vc_date = date_fields_complete(uniq_id, "w20d4_vc_arm_1", df)
-  w20d1_vc_comp = form_fields_complete(uniq_id, "w20d1_vc_arm_1", df)
-  w20d2_vc_comp = form_fields_complete(uniq_id, "w20d2_vc_arm_1", df)
-  w20d3_vc_comp = form_fields_complete(uniq_id, "w20d3_vc_arm_1", df)
-  w20d4_vc_comp = form_fields_complete(uniq_id, "w20d4_vc_arm_1", df)
-  # week 021 video chat
-  w21d1_vc_date = date_fields_complete(uniq_id, "w21d1_vc_arm_1", df)
-  w21d2_vc_date = date_fields_complete(uniq_id, "w21d2_vc_arm_1", df)
-  w21d3_vc_date = date_fields_complete(uniq_id, "w21d3_vc_arm_1", df)
-  w21d4_vc_date = date_fields_complete(uniq_id, "w21d4_vc_arm_1", df)
-  w21d1_vc_comp = form_fields_complete(uniq_id, "w21d1_vc_arm_1", df)
-  w21d2_vc_comp = form_fields_complete(uniq_id, "w21d2_vc_arm_1", df)
-  w21d3_vc_comp = form_fields_complete(uniq_id, "w21d3_vc_arm_1", df)
-  w21d4_vc_comp = form_fields_complete(uniq_id, "w21d4_vc_arm_1", df)
-  # week 022 video chat
-  w22d1_vc_date = date_fields_complete(uniq_id, "w22d1_vc_arm_1", df)
-  w22d2_vc_date = date_fields_complete(uniq_id, "w22d2_vc_arm_1", df)
-  w22d3_vc_date = date_fields_complete(uniq_id, "w22d3_vc_arm_1", df)
-  w22d4_vc_date = date_fields_complete(uniq_id, "w22d4_vc_arm_1", df)
-  w22d1_vc_comp = form_fields_complete(uniq_id, "w22d1_vc_arm_1", df)
-  w22d2_vc_comp = form_fields_complete(uniq_id, "w22d2_vc_arm_1", df)
-  w22d3_vc_comp = form_fields_complete(uniq_id, "w22d3_vc_arm_1", df)
-  w22d4_vc_comp = form_fields_complete(uniq_id, "w22d4_vc_arm_1", df)
-  # week 023 video chat
-  w23d1_vc_date = date_fields_complete(uniq_id, "w23d1_vc_arm_1", df)
-  w23d2_vc_date = date_fields_complete(uniq_id, "w23d2_vc_arm_1", df)
-  w23d3_vc_date = date_fields_complete(uniq_id, "w23d3_vc_arm_1", df)
-  w23d4_vc_date = date_fields_complete(uniq_id, "w23d4_vc_arm_1", df)
-  w23d1_vc_comp = form_fields_complete(uniq_id, "w23d1_vc_arm_1", df)
-  w23d2_vc_comp = form_fields_complete(uniq_id, "w23d2_vc_arm_1", df)
-  w23d3_vc_comp = form_fields_complete(uniq_id, "w23d3_vc_arm_1", df)
-  w23d4_vc_comp = form_fields_complete(uniq_id, "w23d4_vc_arm_1", df)
-  # week 024 video chat
-  w24d1_vc_date = date_fields_complete(uniq_id, "w24d1_vc_arm_1", df)
-  w24d2_vc_date = date_fields_complete(uniq_id, "w24d2_vc_arm_1", df)
-  w24d3_vc_date = date_fields_complete(uniq_id, "w24d3_vc_arm_1", df)
-  w24d4_vc_date = date_fields_complete(uniq_id, "w24d4_vc_arm_1", df)
-  w24d1_vc_comp = form_fields_complete(uniq_id, "w24d1_vc_arm_1", df)
-  w24d2_vc_comp = form_fields_complete(uniq_id, "w24d2_vc_arm_1", df)
-  w24d3_vc_comp = form_fields_complete(uniq_id, "w24d3_vc_arm_1", df)
-  w24d4_vc_comp = form_fields_complete(uniq_id, "w24d4_vc_arm_1", df)
-  # week 025 video chat
-  w25d1_vc_date = date_fields_complete(uniq_id, "w25d1_vc_arm_1", df)
-  w25d2_vc_date = date_fields_complete(uniq_id, "w25d2_vc_arm_1", df)
-  w25d3_vc_date = date_fields_complete(uniq_id, "w25d3_vc_arm_1", df)
-  w25d4_vc_date = date_fields_complete(uniq_id, "w25d4_vc_arm_1", df)
-  w25d1_vc_comp = form_fields_complete(uniq_id, "w25d1_vc_arm_1", df)
-  w25d2_vc_comp = form_fields_complete(uniq_id, "w25d2_vc_arm_1", df)
-  w25d3_vc_comp = form_fields_complete(uniq_id, "w25d3_vc_arm_1", df)
-  w25d4_vc_comp = form_fields_complete(uniq_id, "w25d4_vc_arm_1", df)
-  # week 026 video chat
-  w26d1_vc_date = date_fields_complete(uniq_id, "w26d1_vc_arm_1", df)
-  w26d2_vc_date = date_fields_complete(uniq_id, "w26d2_vc_arm_1", df)
-  w26d3_vc_date = date_fields_complete(uniq_id, "w26d3_vc_arm_1", df)
-  w26d4_vc_date = date_fields_complete(uniq_id, "w26d4_vc_arm_1", df)
-  w26d1_vc_comp = form_fields_complete(uniq_id, "w26d1_vc_arm_1", df)
-  w26d2_vc_comp = form_fields_complete(uniq_id, "w26d2_vc_arm_1", df)
-  w26d3_vc_comp = form_fields_complete(uniq_id, "w26d3_vc_arm_1", df)
-  w26d4_vc_comp = form_fields_complete(uniq_id, "w26d4_vc_arm_1", df)
-  # week 027 video chat
-  w27d1_vc_date = date_fields_complete(uniq_id, "w27d1_vc_arm_1", df)
-  w27d2_vc_date = date_fields_complete(uniq_id, "w27d2_vc_arm_1", df)
-  w27d3_vc_date = date_fields_complete(uniq_id, "w27d3_vc_arm_1", df)
-  w27d4_vc_date = date_fields_complete(uniq_id, "w27d4_vc_arm_1", df)
-  w27d1_vc_comp = form_fields_complete(uniq_id, "w27d1_vc_arm_1", df)
-  w27d2_vc_comp = form_fields_complete(uniq_id, "w27d2_vc_arm_1", df)
-  w27d3_vc_comp = form_fields_complete(uniq_id, "w27d3_vc_arm_1", df)
-  w27d4_vc_comp = form_fields_complete(uniq_id, "w27d4_vc_arm_1", df)
-  # week 028 video chat
-  w28d1_vc_date = date_fields_complete(uniq_id, "w28d1_vc_arm_1", df)
-  w28d2_vc_date = date_fields_complete(uniq_id, "w28d2_vc_arm_1", df)
-  w28d3_vc_date = date_fields_complete(uniq_id, "w28d3_vc_arm_1", df)
-  w28d4_vc_date = date_fields_complete(uniq_id, "w28d4_vc_arm_1", df)
-  w28d1_vc_comp = form_fields_complete(uniq_id, "w28d1_vc_arm_1", df)
-  w28d2_vc_comp = form_fields_complete(uniq_id, "w28d2_vc_arm_1", df)
-  w28d3_vc_comp = form_fields_complete(uniq_id, "w28d3_vc_arm_1", df)
-  w28d4_vc_comp = form_fields_complete(uniq_id, "w28d4_vc_arm_1", df)
-  # week 029 video chat
-  w29d1_vc_date = date_fields_complete(uniq_id, "w29d1_vc_arm_1", df)
-  w29d2_vc_date = date_fields_complete(uniq_id, "w29d2_vc_arm_1", df)
-  w29d3_vc_date = date_fields_complete(uniq_id, "w29d3_vc_arm_1", df)
-  w29d4_vc_date = date_fields_complete(uniq_id, "w29d4_vc_arm_1", df)
-  w29d1_vc_comp = form_fields_complete(uniq_id, "w29d1_vc_arm_1", df)
-  w29d2_vc_comp = form_fields_complete(uniq_id, "w29d2_vc_arm_1", df)
-  w29d3_vc_comp = form_fields_complete(uniq_id, "w29d3_vc_arm_1", df)
-  w29d4_vc_comp = form_fields_complete(uniq_id, "w29d4_vc_arm_1", df)
-  # week 030 video chat
-  w30d1_vc_date = date_fields_complete(uniq_id, "w30d1_vc_arm_1", df)
-  w30d2_vc_date = date_fields_complete(uniq_id, "w30d2_vc_arm_1", df)
-  w30d3_vc_date = date_fields_complete(uniq_id, "w30d3_vc_arm_1", df)
-  w30d4_vc_date = date_fields_complete(uniq_id, "w30d4_vc_arm_1", df)
-  w30d1_vc_comp = form_fields_complete(uniq_id, "w30d1_vc_arm_1", df)
-  w30d2_vc_comp = form_fields_complete(uniq_id, "w30d2_vc_arm_1", df)
-  w30d3_vc_comp = form_fields_complete(uniq_id, "w30d3_vc_arm_1", df)
-  w30d4_vc_comp = form_fields_complete(uniq_id, "w30d4_vc_arm_1", df)
-  # week 031 video chat
-  w31d1_vc_date = date_fields_complete(uniq_id, "w31d1_vc_arm_1", df)
-  w31d2_vc_date = date_fields_complete(uniq_id, "w31d2_vc_arm_1", df)
-  w31d3_vc_date = date_fields_complete(uniq_id, "w31d3_vc_arm_1", df)
-  w31d4_vc_date = date_fields_complete(uniq_id, "w31d4_vc_arm_1", df)
-  w31d1_vc_comp = form_fields_complete(uniq_id, "w31d1_vc_arm_1", df)
-  w31d2_vc_comp = form_fields_complete(uniq_id, "w31d2_vc_arm_1", df)
-  w31d3_vc_comp = form_fields_complete(uniq_id, "w31d3_vc_arm_1", df)
-  w31d4_vc_comp = form_fields_complete(uniq_id, "w31d4_vc_arm_1", df)
-  # week 032 video chat
-  w32d1_vc_date = date_fields_complete(uniq_id, "w32d1_vc_arm_1", df)
-  w32d2_vc_date = date_fields_complete(uniq_id, "w32d2_vc_arm_1", df)
-  w32d3_vc_date = date_fields_complete(uniq_id, "w32d3_vc_arm_1", df)
-  w32d4_vc_date = date_fields_complete(uniq_id, "w32d4_vc_arm_1", df)
-  w32d1_vc_comp = form_fields_complete(uniq_id, "w32d1_vc_arm_1", df)
-  w32d2_vc_comp = form_fields_complete(uniq_id, "w32d2_vc_arm_1", df)
-  w32d3_vc_comp = form_fields_complete(uniq_id, "w32d3_vc_arm_1", df)
-  w32d4_vc_comp = form_fields_complete(uniq_id, "w32d4_vc_arm_1", df)
-  # week 033 video chat
-  w33d1_vc_date = date_fields_complete(uniq_id, "w33d1_vc_arm_1", df)
-  w33d2_vc_date = date_fields_complete(uniq_id, "w33d2_vc_arm_1", df)
-  w33d3_vc_date = date_fields_complete(uniq_id, "w33d3_vc_arm_1", df)
-  w33d4_vc_date = date_fields_complete(uniq_id, "w33d4_vc_arm_1", df)
-  w33d1_vc_comp = form_fields_complete(uniq_id, "w33d1_vc_arm_1", df)
-  w33d2_vc_comp = form_fields_complete(uniq_id, "w33d2_vc_arm_1", df)
-  w33d3_vc_comp = form_fields_complete(uniq_id, "w33d3_vc_arm_1", df)
-  w33d4_vc_comp = form_fields_complete(uniq_id, "w33d4_vc_arm_1", df)
-  # week 034 video chat
-  w34d1_vc_date = date_fields_complete(uniq_id, "w34d1_vc_arm_1", df)
-  w34d2_vc_date = date_fields_complete(uniq_id, "w34d2_vc_arm_1", df)
-  w34d3_vc_date = date_fields_complete(uniq_id, "w34d3_vc_arm_1", df)
-  w34d4_vc_date = date_fields_complete(uniq_id, "w34d4_vc_arm_1", df)
-  w34d1_vc_comp = form_fields_complete(uniq_id, "w34d1_vc_arm_1", df)
-  w34d2_vc_comp = form_fields_complete(uniq_id, "w34d2_vc_arm_1", df)
-  w34d3_vc_comp = form_fields_complete(uniq_id, "w34d3_vc_arm_1", df)
-  w34d4_vc_comp = form_fields_complete(uniq_id, "w34d4_vc_arm_1", df)
-  # week 035 video chat
-  w35d1_vc_date = date_fields_complete(uniq_id, "w35d1_vc_arm_1", df)
-  w35d2_vc_date = date_fields_complete(uniq_id, "w35d2_vc_arm_1", df)
-  w35d3_vc_date = date_fields_complete(uniq_id, "w35d3_vc_arm_1", df)
-  w35d4_vc_date = date_fields_complete(uniq_id, "w35d4_vc_arm_1", df)
-  w35d1_vc_comp = form_fields_complete(uniq_id, "w35d1_vc_arm_1", df)
-  w35d2_vc_comp = form_fields_complete(uniq_id, "w35d2_vc_arm_1", df)
-  w35d3_vc_comp = form_fields_complete(uniq_id, "w35d3_vc_arm_1", df)
-  w35d4_vc_comp = form_fields_complete(uniq_id, "w35d4_vc_arm_1", df)
-  # week 036 video chat
-  w36d1_vc_date = date_fields_complete(uniq_id, "w36d1_vc_arm_1", df)
-  w36d2_vc_date = date_fields_complete(uniq_id, "w36d2_vc_arm_1", df)
-  w36d3_vc_date = date_fields_complete(uniq_id, "w36d3_vc_arm_1", df)
-  w36d4_vc_date = date_fields_complete(uniq_id, "w36d4_vc_arm_1", df)
-  w36d1_vc_comp = form_fields_complete(uniq_id, "w36d1_vc_arm_1", df)
-  w36d2_vc_comp = form_fields_complete(uniq_id, "w36d2_vc_arm_1", df)
-  w36d3_vc_comp = form_fields_complete(uniq_id, "w36d3_vc_arm_1", df)
-  w36d4_vc_comp = form_fields_complete(uniq_id, "w36d4_vc_arm_1", df)
-  # week 037 video chat
-  w37d1_vc_date = date_fields_complete(uniq_id, "w37d1_vc_arm_1", df)
-  w37d2_vc_date = date_fields_complete(uniq_id, "w37d2_vc_arm_1", df)
-  w37d3_vc_date = date_fields_complete(uniq_id, "w37d3_vc_arm_1", df)
-  w37d4_vc_date = date_fields_complete(uniq_id, "w37d4_vc_arm_1", df)
-  w37d1_vc_comp = form_fields_complete(uniq_id, "w37d1_vc_arm_1", df)
-  w37d2_vc_comp = form_fields_complete(uniq_id, "w37d2_vc_arm_1", df)
-  w37d3_vc_comp = form_fields_complete(uniq_id, "w37d3_vc_arm_1", df)
-  w37d4_vc_comp = form_fields_complete(uniq_id, "w37d4_vc_arm_1", df)
-  # week 038 video chat
-  w38d1_vc_date = date_fields_complete(uniq_id, "w38d1_vc_arm_1", df)
-  w38d2_vc_date = date_fields_complete(uniq_id, "w38d2_vc_arm_1", df)
-  w38d3_vc_date = date_fields_complete(uniq_id, "w38d3_vc_arm_1", df)
-  w38d4_vc_date = date_fields_complete(uniq_id, "w38d4_vc_arm_1", df)
-  w38d1_vc_comp = form_fields_complete(uniq_id, "w38d1_vc_arm_1", df)
-  w38d2_vc_comp = form_fields_complete(uniq_id, "w38d2_vc_arm_1", df)
-  w38d3_vc_comp = form_fields_complete(uniq_id, "w38d3_vc_arm_1", df)
-  w38d4_vc_comp = form_fields_complete(uniq_id, "w38d4_vc_arm_1", df)
-  # week 039 video chat
-  w39d1_vc_date = date_fields_complete(uniq_id, "w39d1_vc_arm_1", df)
-  w39d2_vc_date = date_fields_complete(uniq_id, "w39d2_vc_arm_1", df)
-  w39d3_vc_date = date_fields_complete(uniq_id, "w39d3_vc_arm_1", df)
-  w39d4_vc_date = date_fields_complete(uniq_id, "w39d4_vc_arm_1", df)
-  w39d1_vc_comp = form_fields_complete(uniq_id, "w39d1_vc_arm_1", df)
-  w39d2_vc_comp = form_fields_complete(uniq_id, "w39d2_vc_arm_1", df)
-  w39d3_vc_comp = form_fields_complete(uniq_id, "w39d3_vc_arm_1", df)
-  w39d4_vc_comp = form_fields_complete(uniq_id, "w39d4_vc_arm_1", df)
-  # week 040 video chat
-  w40d1_vc_date = date_fields_complete(uniq_id, "w40d1_vc_arm_1", df)
-  w40d2_vc_date = date_fields_complete(uniq_id, "w40d2_vc_arm_1", df)
-  w40d3_vc_date = date_fields_complete(uniq_id, "w40d3_vc_arm_1", df)
-  w40d4_vc_date = date_fields_complete(uniq_id, "w40d4_vc_arm_1", df)
-  w40d1_vc_comp = form_fields_complete(uniq_id, "w40d1_vc_arm_1", df)
-  w40d2_vc_comp = form_fields_complete(uniq_id, "w40d2_vc_arm_1", df)
-  w40d3_vc_comp = form_fields_complete(uniq_id, "w40d3_vc_arm_1", df)
-  w40d4_vc_comp = form_fields_complete(uniq_id, "w40d4_vc_arm_1", df)
-  # week 041 video chat
-  w41d1_vc_date = date_fields_complete(uniq_id, "w41d1_vc_arm_1", df)
-  w41d2_vc_date = date_fields_complete(uniq_id, "w41d2_vc_arm_1", df)
-  w41d3_vc_date = date_fields_complete(uniq_id, "w41d3_vc_arm_1", df)
-  w41d4_vc_date = date_fields_complete(uniq_id, "w41d4_vc_arm_1", df)
-  w41d1_vc_comp = form_fields_complete(uniq_id, "w41d1_vc_arm_1", df)
-  w41d2_vc_comp = form_fields_complete(uniq_id, "w41d2_vc_arm_1", df)
-  w41d3_vc_comp = form_fields_complete(uniq_id, "w41d3_vc_arm_1", df)
-  w41d4_vc_comp = form_fields_complete(uniq_id, "w41d4_vc_arm_1", df)
-  # week 042 video chat
-  w42d1_vc_date = date_fields_complete(uniq_id, "w42d1_vc_arm_1", df)
-  w42d2_vc_date = date_fields_complete(uniq_id, "w42d2_vc_arm_1", df)
-  w42d3_vc_date = date_fields_complete(uniq_id, "w42d3_vc_arm_1", df)
-  w42d4_vc_date = date_fields_complete(uniq_id, "w42d4_vc_arm_1", df)
-  w42d1_vc_comp = form_fields_complete(uniq_id, "w42d1_vc_arm_1", df)
-  w42d2_vc_comp = form_fields_complete(uniq_id, "w42d2_vc_arm_1", df)
-  w42d3_vc_comp = form_fields_complete(uniq_id, "w42d3_vc_arm_1", df)
-  w42d4_vc_comp = form_fields_complete(uniq_id, "w42d4_vc_arm_1", df)
-  # week 043 video chat
-  w43d1_vc_date = date_fields_complete(uniq_id, "w43d1_vc_arm_1", df)
-  w43d2_vc_date = date_fields_complete(uniq_id, "w43d2_vc_arm_1", df)
-  w43d3_vc_date = date_fields_complete(uniq_id, "w43d3_vc_arm_1", df)
-  w43d4_vc_date = date_fields_complete(uniq_id, "w43d4_vc_arm_1", df)
-  w43d1_vc_comp = form_fields_complete(uniq_id, "w43d1_vc_arm_1", df)
-  w43d2_vc_comp = form_fields_complete(uniq_id, "w43d2_vc_arm_1", df)
-  w43d3_vc_comp = form_fields_complete(uniq_id, "w43d3_vc_arm_1", df)
-  w43d4_vc_comp = form_fields_complete(uniq_id, "w43d4_vc_arm_1", df)
-  # week 044 video chat
-  w44d1_vc_date = date_fields_complete(uniq_id, "w44d1_vc_arm_1", df)
-  w44d2_vc_date = date_fields_complete(uniq_id, "w44d2_vc_arm_1", df)
-  w44d3_vc_date = date_fields_complete(uniq_id, "w44d3_vc_arm_1", df)
-  w44d4_vc_date = date_fields_complete(uniq_id, "w44d4_vc_arm_1", df)
-  w44d1_vc_comp = form_fields_complete(uniq_id, "w44d1_vc_arm_1", df)
-  w44d2_vc_comp = form_fields_complete(uniq_id, "w44d2_vc_arm_1", df)
-  w44d3_vc_comp = form_fields_complete(uniq_id, "w44d3_vc_arm_1", df)
-  w44d4_vc_comp = form_fields_complete(uniq_id, "w44d4_vc_arm_1", df)
-  # week 045 video chat
-  w45d1_vc_date = date_fields_complete(uniq_id, "w45d1_vc_arm_1", df)
-  w45d2_vc_date = date_fields_complete(uniq_id, "w45d2_vc_arm_1", df)
-  w45d3_vc_date = date_fields_complete(uniq_id, "w45d3_vc_arm_1", df)
-  w45d4_vc_date = date_fields_complete(uniq_id, "w45d4_vc_arm_1", df)
-  w45d1_vc_comp = form_fields_complete(uniq_id, "w45d1_vc_arm_1", df)
-  w45d2_vc_comp = form_fields_complete(uniq_id, "w45d2_vc_arm_1", df)
-  w45d3_vc_comp = form_fields_complete(uniq_id, "w45d3_vc_arm_1", df)
-  w45d4_vc_comp = form_fields_complete(uniq_id, "w45d4_vc_arm_1", df)
-  # week 046 video chat
-  w46d1_vc_date = date_fields_complete(uniq_id, "w46d1_vc_arm_1", df)
-  w46d2_vc_date = date_fields_complete(uniq_id, "w46d2_vc_arm_1", df)
-  w46d3_vc_date = date_fields_complete(uniq_id, "w46d3_vc_arm_1", df)
-  w46d4_vc_date = date_fields_complete(uniq_id, "w46d4_vc_arm_1", df)
-  w46d1_vc_comp = form_fields_complete(uniq_id, "w46d1_vc_arm_1", df)
-  w46d2_vc_comp = form_fields_complete(uniq_id, "w46d2_vc_arm_1", df)
-  w46d3_vc_comp = form_fields_complete(uniq_id, "w46d3_vc_arm_1", df)
-  w46d4_vc_comp = form_fields_complete(uniq_id, "w46d4_vc_arm_1", df)
-  # week 047 video chat
-  w47d1_vc_date = date_fields_complete(uniq_id, "w47d1_vc_arm_1", df)
-  w47d2_vc_date = date_fields_complete(uniq_id, "w47d2_vc_arm_1", df)
-  w47d3_vc_date = date_fields_complete(uniq_id, "w47d3_vc_arm_1", df)
-  w47d4_vc_date = date_fields_complete(uniq_id, "w47d4_vc_arm_1", df)
-  w47d1_vc_comp = form_fields_complete(uniq_id, "w47d1_vc_arm_1", df)
-  w47d2_vc_comp = form_fields_complete(uniq_id, "w47d2_vc_arm_1", df)
-  w47d3_vc_comp = form_fields_complete(uniq_id, "w47d3_vc_arm_1", df)
-  w47d4_vc_comp = form_fields_complete(uniq_id, "w47d4_vc_arm_1", df)
-  # week 048 video chat
-  w48d1_vc_date = date_fields_complete(uniq_id, "w48d1_vc_arm_1", df)
-  w48d2_vc_date = date_fields_complete(uniq_id, "w48d2_vc_arm_1", df)
-  w48d3_vc_date = date_fields_complete(uniq_id, "w48d3_vc_arm_1", df)
-  w48d4_vc_date = date_fields_complete(uniq_id, "w48d4_vc_arm_1", df)
-  w48d1_vc_comp = form_fields_complete(uniq_id, "w48d1_vc_arm_1", df)
-  w48d2_vc_comp = form_fields_complete(uniq_id, "w48d2_vc_arm_1", df)
-  w48d3_vc_comp = form_fields_complete(uniq_id, "w48d3_vc_arm_1", df)
-  w48d4_vc_comp = form_fields_complete(uniq_id, "w48d4_vc_arm_1", df)
+  # # week 01 video chat
+  # w01d1_vc_date = date_fields_complete(uniq_id, "w01d1_vc_arm_1", df)
+  # w01d2_vc_date = date_fields_complete(uniq_id, "w01d2_vc_arm_1", df)
+  # w01d3_vc_date = date_fields_complete(uniq_id, "w01d3_vc_arm_1", df)
+  # w01d4_vc_date = date_fields_complete(uniq_id, "w01d4_vc_arm_1", df)
+  # w01d1_vc_comp = form_fields_complete(uniq_id, "w01d1_vc_arm_1", df)
+  # w01d2_vc_comp = form_fields_complete(uniq_id, "w01d2_vc_arm_1", df)
+  # w01d3_vc_comp = form_fields_complete(uniq_id, "w01d3_vc_arm_1", df)
+  # w01d4_vc_comp = form_fields_complete(uniq_id, "w01d4_vc_arm_1", df)
+  # # week 02 video chat
+  # w02d1_vc_date = date_fields_complete(uniq_id, "w02d1_vc_arm_1", df)
+  # w02d2_vc_date = date_fields_complete(uniq_id, "w02d2_vc_arm_1", df)
+  # w02d3_vc_date = date_fields_complete(uniq_id, "w02d3_vc_arm_1", df)
+  # w02d4_vc_date = date_fields_complete(uniq_id, "w02d4_vc_arm_1", df)
+  # w02d1_vc_comp = form_fields_complete(uniq_id, "w02d1_vc_arm_1", df)
+  # w02d2_vc_comp = form_fields_complete(uniq_id, "w02d2_vc_arm_1", df)
+  # w02d3_vc_comp = form_fields_complete(uniq_id, "w02d3_vc_arm_1", df)
+  # w02d4_vc_comp = form_fields_complete(uniq_id, "w02d4_vc_arm_1", df)
+  # # week 03 video chat
+  # w03d1_vc_date = date_fields_complete(uniq_id, "w03d1_vc_arm_1", df)
+  # w03d2_vc_date = date_fields_complete(uniq_id, "w03d2_vc_arm_1", df)
+  # w03d3_vc_date = date_fields_complete(uniq_id, "w03d3_vc_arm_1", df)
+  # w03d4_vc_date = date_fields_complete(uniq_id, "w03d4_vc_arm_1", df)
+  # w03d1_vc_comp = form_fields_complete(uniq_id, "w03d1_vc_arm_1", df)
+  # w03d2_vc_comp = form_fields_complete(uniq_id, "w03d2_vc_arm_1", df)
+  # w03d3_vc_comp = form_fields_complete(uniq_id, "w03d3_vc_arm_1", df)
+  # w03d4_vc_comp = form_fields_complete(uniq_id, "w03d4_vc_arm_1", df)
+  # # week 04 video chat
+  # w04d1_vc_date = date_fields_complete(uniq_id, "w04d1_vc_arm_1", df)
+  # w04d2_vc_date = date_fields_complete(uniq_id, "w04d2_vc_arm_1", df)
+  # w04d3_vc_date = date_fields_complete(uniq_id, "w04d3_vc_arm_1", df)
+  # w04d4_vc_date = date_fields_complete(uniq_id, "w04d4_vc_arm_1", df)
+  # w04d1_vc_comp = form_fields_complete(uniq_id, "w04d1_vc_arm_1", df)
+  # w04d2_vc_comp = form_fields_complete(uniq_id, "w04d2_vc_arm_1", df)
+  # w04d3_vc_comp = form_fields_complete(uniq_id, "w04d3_vc_arm_1", df)
+  # w04d4_vc_comp = form_fields_complete(uniq_id, "w04d4_vc_arm_1", df)
+  # # week 05 video chat
+  # w05d1_vc_date = date_fields_complete(uniq_id, "w05d1_vc_arm_1", df)
+  # w05d2_vc_date = date_fields_complete(uniq_id, "w05d2_vc_arm_1", df)
+  # w05d3_vc_date = date_fields_complete(uniq_id, "w05d3_vc_arm_1", df)
+  # w05d4_vc_date = date_fields_complete(uniq_id, "w05d4_vc_arm_1", df)
+  # w05d1_vc_comp = form_fields_complete(uniq_id, "w05d1_vc_arm_1", df)
+  # w05d2_vc_comp = form_fields_complete(uniq_id, "w05d2_vc_arm_1", df)
+  # w05d3_vc_comp = form_fields_complete(uniq_id, "w05d3_vc_arm_1", df)
+  # w05d4_vc_comp = form_fields_complete(uniq_id, "w05d4_vc_arm_1", df)
+  # # week 06 video chat
+  # w06d1_vc_date = date_fields_complete(uniq_id, "w06d1_vc_arm_1", df)
+  # w06d2_vc_date = date_fields_complete(uniq_id, "w06d2_vc_arm_1", df)
+  # w06d3_vc_date = date_fields_complete(uniq_id, "w06d3_vc_arm_1", df)
+  # w06d4_vc_date = date_fields_complete(uniq_id, "w06d4_vc_arm_1", df)
+  # w06d1_vc_comp = form_fields_complete(uniq_id, "w06d1_vc_arm_1", df)
+  # w06d2_vc_comp = form_fields_complete(uniq_id, "w06d2_vc_arm_1", df)
+  # w06d3_vc_comp = form_fields_complete(uniq_id, "w06d3_vc_arm_1", df)
+  # w06d4_vc_comp = form_fields_complete(uniq_id, "w06d4_vc_arm_1", df)
+  # # week 07 video chat
+  # w07d1_vc_date = date_fields_complete(uniq_id, "w07d1_vc_arm_1", df)
+  # w07d2_vc_date = date_fields_complete(uniq_id, "w07d2_vc_arm_1", df)
+  # w07d3_vc_date = date_fields_complete(uniq_id, "w07d3_vc_arm_1", df)
+  # w07d4_vc_date = date_fields_complete(uniq_id, "w07d4_vc_arm_1", df)
+  # w07d1_vc_comp = form_fields_complete(uniq_id, "w07d1_vc_arm_1", df)
+  # w07d2_vc_comp = form_fields_complete(uniq_id, "w07d2_vc_arm_1", df)
+  # w07d3_vc_comp = form_fields_complete(uniq_id, "w07d3_vc_arm_1", df)
+  # w07d4_vc_comp = form_fields_complete(uniq_id, "w07d4_vc_arm_1", df)
+  # # week 08 video chat
+  # w08d1_vc_date = date_fields_complete(uniq_id, "w08d1_vc_arm_1", df)
+  # w08d2_vc_date = date_fields_complete(uniq_id, "w08d2_vc_arm_1", df)
+  # w08d3_vc_date = date_fields_complete(uniq_id, "w08d3_vc_arm_1", df)
+  # w08d4_vc_date = date_fields_complete(uniq_id, "w08d4_vc_arm_1", df)
+  # w08d1_vc_comp = form_fields_complete(uniq_id, "w08d1_vc_arm_1", df)
+  # w08d2_vc_comp = form_fields_complete(uniq_id, "w08d2_vc_arm_1", df)
+  # w08d3_vc_comp = form_fields_complete(uniq_id, "w08d3_vc_arm_1", df)
+  # w08d4_vc_comp = form_fields_complete(uniq_id, "w08d4_vc_arm_1", df)
+  # # week 09 video chat
+  # w09d1_vc_date = date_fields_complete(uniq_id, "w09d1_vc_arm_1", df)
+  # w09d2_vc_date = date_fields_complete(uniq_id, "w09d2_vc_arm_1", df)
+  # w09d3_vc_date = date_fields_complete(uniq_id, "w09d3_vc_arm_1", df)
+  # w09d4_vc_date = date_fields_complete(uniq_id, "w09d4_vc_arm_1", df)
+  # w09d1_vc_comp = form_fields_complete(uniq_id, "w09d1_vc_arm_1", df)
+  # w09d2_vc_comp = form_fields_complete(uniq_id, "w09d2_vc_arm_1", df)
+  # w09d3_vc_comp = form_fields_complete(uniq_id, "w09d3_vc_arm_1", df)
+  # w09d4_vc_comp = form_fields_complete(uniq_id, "w09d4_vc_arm_1", df)
+  # # week 010 video chat
+  # w10d1_vc_date = date_fields_complete(uniq_id, "w10d1_vc_arm_1", df)
+  # w10d2_vc_date = date_fields_complete(uniq_id, "w10d2_vc_arm_1", df)
+  # w10d3_vc_date = date_fields_complete(uniq_id, "w10d3_vc_arm_1", df)
+  # w10d4_vc_date = date_fields_complete(uniq_id, "w10d4_vc_arm_1", df)
+  # w10d1_vc_comp = form_fields_complete(uniq_id, "w10d1_vc_arm_1", df)
+  # w10d2_vc_comp = form_fields_complete(uniq_id, "w10d2_vc_arm_1", df)
+  # w10d3_vc_comp = form_fields_complete(uniq_id, "w10d3_vc_arm_1", df)
+  # w10d4_vc_comp = form_fields_complete(uniq_id, "w10d4_vc_arm_1", df)
+  # # week 011 video chat
+  # w11d1_vc_date = date_fields_complete(uniq_id, "w11d1_vc_arm_1", df)
+  # w11d2_vc_date = date_fields_complete(uniq_id, "w11d2_vc_arm_1", df)
+  # w11d3_vc_date = date_fields_complete(uniq_id, "w11d3_vc_arm_1", df)
+  # w11d4_vc_date = date_fields_complete(uniq_id, "w11d4_vc_arm_1", df)
+  # w11d1_vc_comp = form_fields_complete(uniq_id, "w11d1_vc_arm_1", df)
+  # w11d2_vc_comp = form_fields_complete(uniq_id, "w11d2_vc_arm_1", df)
+  # w11d3_vc_comp = form_fields_complete(uniq_id, "w11d3_vc_arm_1", df)
+  # w11d4_vc_comp = form_fields_complete(uniq_id, "w11d4_vc_arm_1", df)
+  # # week 012 video chat
+  # w12d1_vc_date = date_fields_complete(uniq_id, "w12d1_vc_arm_1", df)
+  # w12d2_vc_date = date_fields_complete(uniq_id, "w12d2_vc_arm_1", df)
+  # w12d3_vc_date = date_fields_complete(uniq_id, "w12d3_vc_arm_1", df)
+  # w12d4_vc_date = date_fields_complete(uniq_id, "w12d4_vc_arm_1", df)
+  # w12d1_vc_comp = form_fields_complete(uniq_id, "w12d1_vc_arm_1", df)
+  # w12d2_vc_comp = form_fields_complete(uniq_id, "w12d2_vc_arm_1", df)
+  # w12d3_vc_comp = form_fields_complete(uniq_id, "w12d3_vc_arm_1", df)
+  # w12d4_vc_comp = form_fields_complete(uniq_id, "w12d4_vc_arm_1", df)
+  # # week 013 video chat
+  # w13d1_vc_date = date_fields_complete(uniq_id, "w13d1_vc_arm_1", df)
+  # w13d2_vc_date = date_fields_complete(uniq_id, "w13d2_vc_arm_1", df)
+  # w13d3_vc_date = date_fields_complete(uniq_id, "w13d3_vc_arm_1", df)
+  # w13d4_vc_date = date_fields_complete(uniq_id, "w13d4_vc_arm_1", df)
+  # w13d1_vc_comp = form_fields_complete(uniq_id, "w13d1_vc_arm_1", df)
+  # w13d2_vc_comp = form_fields_complete(uniq_id, "w13d2_vc_arm_1", df)
+  # w13d3_vc_comp = form_fields_complete(uniq_id, "w13d3_vc_arm_1", df)
+  # w13d4_vc_comp = form_fields_complete(uniq_id, "w13d4_vc_arm_1", df)
+  # # week 014 video chat
+  # w14d1_vc_date = date_fields_complete(uniq_id, "w14d1_vc_arm_1", df)
+  # w14d2_vc_date = date_fields_complete(uniq_id, "w14d2_vc_arm_1", df)
+  # w14d3_vc_date = date_fields_complete(uniq_id, "w14d3_vc_arm_1", df)
+  # w14d4_vc_date = date_fields_complete(uniq_id, "w14d4_vc_arm_1", df)
+  # w14d1_vc_comp = form_fields_complete(uniq_id, "w14d1_vc_arm_1", df)
+  # w14d2_vc_comp = form_fields_complete(uniq_id, "w14d2_vc_arm_1", df)
+  # w14d3_vc_comp = form_fields_complete(uniq_id, "w14d3_vc_arm_1", df)
+  # w14d4_vc_comp = form_fields_complete(uniq_id, "w14d4_vc_arm_1", df)
+  # # week 015 video chat
+  # w15d1_vc_date = date_fields_complete(uniq_id, "w15d1_vc_arm_1", df)
+  # w15d2_vc_date = date_fields_complete(uniq_id, "w15d2_vc_arm_1", df)
+  # w15d3_vc_date = date_fields_complete(uniq_id, "w15d3_vc_arm_1", df)
+  # w15d4_vc_date = date_fields_complete(uniq_id, "w15d4_vc_arm_1", df)
+  # w15d1_vc_comp = form_fields_complete(uniq_id, "w15d1_vc_arm_1", df)
+  # w15d2_vc_comp = form_fields_complete(uniq_id, "w15d2_vc_arm_1", df)
+  # w15d3_vc_comp = form_fields_complete(uniq_id, "w15d3_vc_arm_1", df)
+  # w15d4_vc_comp = form_fields_complete(uniq_id, "w15d4_vc_arm_1", df)
+  # # week 016 video chat
+  # w16d1_vc_date = date_fields_complete(uniq_id, "w16d1_vc_arm_1", df)
+  # w16d2_vc_date = date_fields_complete(uniq_id, "w16d2_vc_arm_1", df)
+  # w16d3_vc_date = date_fields_complete(uniq_id, "w16d3_vc_arm_1", df)
+  # w16d4_vc_date = date_fields_complete(uniq_id, "w16d4_vc_arm_1", df)
+  # w16d1_vc_comp = form_fields_complete(uniq_id, "w16d1_vc_arm_1", df)
+  # w16d2_vc_comp = form_fields_complete(uniq_id, "w16d2_vc_arm_1", df)
+  # w16d3_vc_comp = form_fields_complete(uniq_id, "w16d3_vc_arm_1", df)
+  # w16d4_vc_comp = form_fields_complete(uniq_id, "w16d4_vc_arm_1", df)
+  # # week 017 video chat
+  # w17d1_vc_date = date_fields_complete(uniq_id, "w17d1_vc_arm_1", df)
+  # w17d2_vc_date = date_fields_complete(uniq_id, "w17d2_vc_arm_1", df)
+  # w17d3_vc_date = date_fields_complete(uniq_id, "w17d3_vc_arm_1", df)
+  # w17d4_vc_date = date_fields_complete(uniq_id, "w17d4_vc_arm_1", df)
+  # w17d1_vc_comp = form_fields_complete(uniq_id, "w17d1_vc_arm_1", df)
+  # w17d2_vc_comp = form_fields_complete(uniq_id, "w17d2_vc_arm_1", df)
+  # w17d3_vc_comp = form_fields_complete(uniq_id, "w17d3_vc_arm_1", df)
+  # w17d4_vc_comp = form_fields_complete(uniq_id, "w17d4_vc_arm_1", df)
+  # # week 018 video chat
+  # w18d1_vc_date = date_fields_complete(uniq_id, "w18d1_vc_arm_1", df)
+  # w18d2_vc_date = date_fields_complete(uniq_id, "w18d2_vc_arm_1", df)
+  # w18d3_vc_date = date_fields_complete(uniq_id, "w18d3_vc_arm_1", df)
+  # w18d4_vc_date = date_fields_complete(uniq_id, "w18d4_vc_arm_1", df)
+  # w18d1_vc_comp = form_fields_complete(uniq_id, "w18d1_vc_arm_1", df)
+  # w18d2_vc_comp = form_fields_complete(uniq_id, "w18d2_vc_arm_1", df)
+  # w18d3_vc_comp = form_fields_complete(uniq_id, "w18d3_vc_arm_1", df)
+  # w18d4_vc_comp = form_fields_complete(uniq_id, "w18d4_vc_arm_1", df)
+  # # week 019 video chat
+  # w19d1_vc_date = date_fields_complete(uniq_id, "w19d1_vc_arm_1", df)
+  # w19d2_vc_date = date_fields_complete(uniq_id, "w19d2_vc_arm_1", df)
+  # w19d3_vc_date = date_fields_complete(uniq_id, "w19d3_vc_arm_1", df)
+  # w19d4_vc_date = date_fields_complete(uniq_id, "w19d4_vc_arm_1", df)
+  # w19d1_vc_comp = form_fields_complete(uniq_id, "w19d1_vc_arm_1", df)
+  # w19d2_vc_comp = form_fields_complete(uniq_id, "w19d2_vc_arm_1", df)
+  # w19d3_vc_comp = form_fields_complete(uniq_id, "w19d3_vc_arm_1", df)
+  # w19d4_vc_comp = form_fields_complete(uniq_id, "w19d4_vc_arm_1", df)
+  # # week 020 video chat
+  # w20d1_vc_date = date_fields_complete(uniq_id, "w20d1_vc_arm_1", df)
+  # w20d2_vc_date = date_fields_complete(uniq_id, "w20d2_vc_arm_1", df)
+  # w20d3_vc_date = date_fields_complete(uniq_id, "w20d3_vc_arm_1", df)
+  # w20d4_vc_date = date_fields_complete(uniq_id, "w20d4_vc_arm_1", df)
+  # w20d1_vc_comp = form_fields_complete(uniq_id, "w20d1_vc_arm_1", df)
+  # w20d2_vc_comp = form_fields_complete(uniq_id, "w20d2_vc_arm_1", df)
+  # w20d3_vc_comp = form_fields_complete(uniq_id, "w20d3_vc_arm_1", df)
+  # w20d4_vc_comp = form_fields_complete(uniq_id, "w20d4_vc_arm_1", df)
+  # # week 021 video chat
+  # w21d1_vc_date = date_fields_complete(uniq_id, "w21d1_vc_arm_1", df)
+  # w21d2_vc_date = date_fields_complete(uniq_id, "w21d2_vc_arm_1", df)
+  # w21d3_vc_date = date_fields_complete(uniq_id, "w21d3_vc_arm_1", df)
+  # w21d4_vc_date = date_fields_complete(uniq_id, "w21d4_vc_arm_1", df)
+  # w21d1_vc_comp = form_fields_complete(uniq_id, "w21d1_vc_arm_1", df)
+  # w21d2_vc_comp = form_fields_complete(uniq_id, "w21d2_vc_arm_1", df)
+  # w21d3_vc_comp = form_fields_complete(uniq_id, "w21d3_vc_arm_1", df)
+  # w21d4_vc_comp = form_fields_complete(uniq_id, "w21d4_vc_arm_1", df)
+  # # week 022 video chat
+  # w22d1_vc_date = date_fields_complete(uniq_id, "w22d1_vc_arm_1", df)
+  # w22d2_vc_date = date_fields_complete(uniq_id, "w22d2_vc_arm_1", df)
+  # w22d3_vc_date = date_fields_complete(uniq_id, "w22d3_vc_arm_1", df)
+  # w22d4_vc_date = date_fields_complete(uniq_id, "w22d4_vc_arm_1", df)
+  # w22d1_vc_comp = form_fields_complete(uniq_id, "w22d1_vc_arm_1", df)
+  # w22d2_vc_comp = form_fields_complete(uniq_id, "w22d2_vc_arm_1", df)
+  # w22d3_vc_comp = form_fields_complete(uniq_id, "w22d3_vc_arm_1", df)
+  # w22d4_vc_comp = form_fields_complete(uniq_id, "w22d4_vc_arm_1", df)
+  # # week 023 video chat
+  # w23d1_vc_date = date_fields_complete(uniq_id, "w23d1_vc_arm_1", df)
+  # w23d2_vc_date = date_fields_complete(uniq_id, "w23d2_vc_arm_1", df)
+  # w23d3_vc_date = date_fields_complete(uniq_id, "w23d3_vc_arm_1", df)
+  # w23d4_vc_date = date_fields_complete(uniq_id, "w23d4_vc_arm_1", df)
+  # w23d1_vc_comp = form_fields_complete(uniq_id, "w23d1_vc_arm_1", df)
+  # w23d2_vc_comp = form_fields_complete(uniq_id, "w23d2_vc_arm_1", df)
+  # w23d3_vc_comp = form_fields_complete(uniq_id, "w23d3_vc_arm_1", df)
+  # w23d4_vc_comp = form_fields_complete(uniq_id, "w23d4_vc_arm_1", df)
+  # # week 024 video chat
+  # w24d1_vc_date = date_fields_complete(uniq_id, "w24d1_vc_arm_1", df)
+  # w24d2_vc_date = date_fields_complete(uniq_id, "w24d2_vc_arm_1", df)
+  # w24d3_vc_date = date_fields_complete(uniq_id, "w24d3_vc_arm_1", df)
+  # w24d4_vc_date = date_fields_complete(uniq_id, "w24d4_vc_arm_1", df)
+  # w24d1_vc_comp = form_fields_complete(uniq_id, "w24d1_vc_arm_1", df)
+  # w24d2_vc_comp = form_fields_complete(uniq_id, "w24d2_vc_arm_1", df)
+  # w24d3_vc_comp = form_fields_complete(uniq_id, "w24d3_vc_arm_1", df)
+  # w24d4_vc_comp = form_fields_complete(uniq_id, "w24d4_vc_arm_1", df)
+  # # week 025 video chat
+  # w25d1_vc_date = date_fields_complete(uniq_id, "w25d1_vc_arm_1", df)
+  # w25d2_vc_date = date_fields_complete(uniq_id, "w25d2_vc_arm_1", df)
+  # w25d3_vc_date = date_fields_complete(uniq_id, "w25d3_vc_arm_1", df)
+  # w25d4_vc_date = date_fields_complete(uniq_id, "w25d4_vc_arm_1", df)
+  # w25d1_vc_comp = form_fields_complete(uniq_id, "w25d1_vc_arm_1", df)
+  # w25d2_vc_comp = form_fields_complete(uniq_id, "w25d2_vc_arm_1", df)
+  # w25d3_vc_comp = form_fields_complete(uniq_id, "w25d3_vc_arm_1", df)
+  # w25d4_vc_comp = form_fields_complete(uniq_id, "w25d4_vc_arm_1", df)
+  # # week 026 video chat
+  # w26d1_vc_date = date_fields_complete(uniq_id, "w26d1_vc_arm_1", df)
+  # w26d2_vc_date = date_fields_complete(uniq_id, "w26d2_vc_arm_1", df)
+  # w26d3_vc_date = date_fields_complete(uniq_id, "w26d3_vc_arm_1", df)
+  # w26d4_vc_date = date_fields_complete(uniq_id, "w26d4_vc_arm_1", df)
+  # w26d1_vc_comp = form_fields_complete(uniq_id, "w26d1_vc_arm_1", df)
+  # w26d2_vc_comp = form_fields_complete(uniq_id, "w26d2_vc_arm_1", df)
+  # w26d3_vc_comp = form_fields_complete(uniq_id, "w26d3_vc_arm_1", df)
+  # w26d4_vc_comp = form_fields_complete(uniq_id, "w26d4_vc_arm_1", df)
+  # # week 027 video chat
+  # w27d1_vc_date = date_fields_complete(uniq_id, "w27d1_vc_arm_1", df)
+  # w27d2_vc_date = date_fields_complete(uniq_id, "w27d2_vc_arm_1", df)
+  # w27d3_vc_date = date_fields_complete(uniq_id, "w27d3_vc_arm_1", df)
+  # w27d4_vc_date = date_fields_complete(uniq_id, "w27d4_vc_arm_1", df)
+  # w27d1_vc_comp = form_fields_complete(uniq_id, "w27d1_vc_arm_1", df)
+  # w27d2_vc_comp = form_fields_complete(uniq_id, "w27d2_vc_arm_1", df)
+  # w27d3_vc_comp = form_fields_complete(uniq_id, "w27d3_vc_arm_1", df)
+  # w27d4_vc_comp = form_fields_complete(uniq_id, "w27d4_vc_arm_1", df)
+  # # week 028 video chat
+  # w28d1_vc_date = date_fields_complete(uniq_id, "w28d1_vc_arm_1", df)
+  # w28d2_vc_date = date_fields_complete(uniq_id, "w28d2_vc_arm_1", df)
+  # w28d3_vc_date = date_fields_complete(uniq_id, "w28d3_vc_arm_1", df)
+  # w28d4_vc_date = date_fields_complete(uniq_id, "w28d4_vc_arm_1", df)
+  # w28d1_vc_comp = form_fields_complete(uniq_id, "w28d1_vc_arm_1", df)
+  # w28d2_vc_comp = form_fields_complete(uniq_id, "w28d2_vc_arm_1", df)
+  # w28d3_vc_comp = form_fields_complete(uniq_id, "w28d3_vc_arm_1", df)
+  # w28d4_vc_comp = form_fields_complete(uniq_id, "w28d4_vc_arm_1", df)
+  # # week 029 video chat
+  # w29d1_vc_date = date_fields_complete(uniq_id, "w29d1_vc_arm_1", df)
+  # w29d2_vc_date = date_fields_complete(uniq_id, "w29d2_vc_arm_1", df)
+  # w29d3_vc_date = date_fields_complete(uniq_id, "w29d3_vc_arm_1", df)
+  # w29d4_vc_date = date_fields_complete(uniq_id, "w29d4_vc_arm_1", df)
+  # w29d1_vc_comp = form_fields_complete(uniq_id, "w29d1_vc_arm_1", df)
+  # w29d2_vc_comp = form_fields_complete(uniq_id, "w29d2_vc_arm_1", df)
+  # w29d3_vc_comp = form_fields_complete(uniq_id, "w29d3_vc_arm_1", df)
+  # w29d4_vc_comp = form_fields_complete(uniq_id, "w29d4_vc_arm_1", df)
+  # # week 030 video chat
+  # w30d1_vc_date = date_fields_complete(uniq_id, "w30d1_vc_arm_1", df)
+  # w30d2_vc_date = date_fields_complete(uniq_id, "w30d2_vc_arm_1", df)
+  # w30d3_vc_date = date_fields_complete(uniq_id, "w30d3_vc_arm_1", df)
+  # w30d4_vc_date = date_fields_complete(uniq_id, "w30d4_vc_arm_1", df)
+  # w30d1_vc_comp = form_fields_complete(uniq_id, "w30d1_vc_arm_1", df)
+  # w30d2_vc_comp = form_fields_complete(uniq_id, "w30d2_vc_arm_1", df)
+  # w30d3_vc_comp = form_fields_complete(uniq_id, "w30d3_vc_arm_1", df)
+  # w30d4_vc_comp = form_fields_complete(uniq_id, "w30d4_vc_arm_1", df)
+  # # week 031 video chat
+  # w31d1_vc_date = date_fields_complete(uniq_id, "w31d1_vc_arm_1", df)
+  # w31d2_vc_date = date_fields_complete(uniq_id, "w31d2_vc_arm_1", df)
+  # w31d3_vc_date = date_fields_complete(uniq_id, "w31d3_vc_arm_1", df)
+  # w31d4_vc_date = date_fields_complete(uniq_id, "w31d4_vc_arm_1", df)
+  # w31d1_vc_comp = form_fields_complete(uniq_id, "w31d1_vc_arm_1", df)
+  # w31d2_vc_comp = form_fields_complete(uniq_id, "w31d2_vc_arm_1", df)
+  # w31d3_vc_comp = form_fields_complete(uniq_id, "w31d3_vc_arm_1", df)
+  # w31d4_vc_comp = form_fields_complete(uniq_id, "w31d4_vc_arm_1", df)
+  # # week 032 video chat
+  # w32d1_vc_date = date_fields_complete(uniq_id, "w32d1_vc_arm_1", df)
+  # w32d2_vc_date = date_fields_complete(uniq_id, "w32d2_vc_arm_1", df)
+  # w32d3_vc_date = date_fields_complete(uniq_id, "w32d3_vc_arm_1", df)
+  # w32d4_vc_date = date_fields_complete(uniq_id, "w32d4_vc_arm_1", df)
+  # w32d1_vc_comp = form_fields_complete(uniq_id, "w32d1_vc_arm_1", df)
+  # w32d2_vc_comp = form_fields_complete(uniq_id, "w32d2_vc_arm_1", df)
+  # w32d3_vc_comp = form_fields_complete(uniq_id, "w32d3_vc_arm_1", df)
+  # w32d4_vc_comp = form_fields_complete(uniq_id, "w32d4_vc_arm_1", df)
+  # # week 033 video chat
+  # w33d1_vc_date = date_fields_complete(uniq_id, "w33d1_vc_arm_1", df)
+  # w33d2_vc_date = date_fields_complete(uniq_id, "w33d2_vc_arm_1", df)
+  # w33d3_vc_date = date_fields_complete(uniq_id, "w33d3_vc_arm_1", df)
+  # w33d4_vc_date = date_fields_complete(uniq_id, "w33d4_vc_arm_1", df)
+  # w33d1_vc_comp = form_fields_complete(uniq_id, "w33d1_vc_arm_1", df)
+  # w33d2_vc_comp = form_fields_complete(uniq_id, "w33d2_vc_arm_1", df)
+  # w33d3_vc_comp = form_fields_complete(uniq_id, "w33d3_vc_arm_1", df)
+  # w33d4_vc_comp = form_fields_complete(uniq_id, "w33d4_vc_arm_1", df)
+  # # week 034 video chat
+  # w34d1_vc_date = date_fields_complete(uniq_id, "w34d1_vc_arm_1", df)
+  # w34d2_vc_date = date_fields_complete(uniq_id, "w34d2_vc_arm_1", df)
+  # w34d3_vc_date = date_fields_complete(uniq_id, "w34d3_vc_arm_1", df)
+  # w34d4_vc_date = date_fields_complete(uniq_id, "w34d4_vc_arm_1", df)
+  # w34d1_vc_comp = form_fields_complete(uniq_id, "w34d1_vc_arm_1", df)
+  # w34d2_vc_comp = form_fields_complete(uniq_id, "w34d2_vc_arm_1", df)
+  # w34d3_vc_comp = form_fields_complete(uniq_id, "w34d3_vc_arm_1", df)
+  # w34d4_vc_comp = form_fields_complete(uniq_id, "w34d4_vc_arm_1", df)
+  # # week 035 video chat
+  # w35d1_vc_date = date_fields_complete(uniq_id, "w35d1_vc_arm_1", df)
+  # w35d2_vc_date = date_fields_complete(uniq_id, "w35d2_vc_arm_1", df)
+  # w35d3_vc_date = date_fields_complete(uniq_id, "w35d3_vc_arm_1", df)
+  # w35d4_vc_date = date_fields_complete(uniq_id, "w35d4_vc_arm_1", df)
+  # w35d1_vc_comp = form_fields_complete(uniq_id, "w35d1_vc_arm_1", df)
+  # w35d2_vc_comp = form_fields_complete(uniq_id, "w35d2_vc_arm_1", df)
+  # w35d3_vc_comp = form_fields_complete(uniq_id, "w35d3_vc_arm_1", df)
+  # w35d4_vc_comp = form_fields_complete(uniq_id, "w35d4_vc_arm_1", df)
+  # # week 036 video chat
+  # w36d1_vc_date = date_fields_complete(uniq_id, "w36d1_vc_arm_1", df)
+  # w36d2_vc_date = date_fields_complete(uniq_id, "w36d2_vc_arm_1", df)
+  # w36d3_vc_date = date_fields_complete(uniq_id, "w36d3_vc_arm_1", df)
+  # w36d4_vc_date = date_fields_complete(uniq_id, "w36d4_vc_arm_1", df)
+  # w36d1_vc_comp = form_fields_complete(uniq_id, "w36d1_vc_arm_1", df)
+  # w36d2_vc_comp = form_fields_complete(uniq_id, "w36d2_vc_arm_1", df)
+  # w36d3_vc_comp = form_fields_complete(uniq_id, "w36d3_vc_arm_1", df)
+  # w36d4_vc_comp = form_fields_complete(uniq_id, "w36d4_vc_arm_1", df)
+  # # week 037 video chat
+  # w37d1_vc_date = date_fields_complete(uniq_id, "w37d1_vc_arm_1", df)
+  # w37d2_vc_date = date_fields_complete(uniq_id, "w37d2_vc_arm_1", df)
+  # w37d3_vc_date = date_fields_complete(uniq_id, "w37d3_vc_arm_1", df)
+  # w37d4_vc_date = date_fields_complete(uniq_id, "w37d4_vc_arm_1", df)
+  # w37d1_vc_comp = form_fields_complete(uniq_id, "w37d1_vc_arm_1", df)
+  # w37d2_vc_comp = form_fields_complete(uniq_id, "w37d2_vc_arm_1", df)
+  # w37d3_vc_comp = form_fields_complete(uniq_id, "w37d3_vc_arm_1", df)
+  # w37d4_vc_comp = form_fields_complete(uniq_id, "w37d4_vc_arm_1", df)
+  # # week 038 video chat
+  # w38d1_vc_date = date_fields_complete(uniq_id, "w38d1_vc_arm_1", df)
+  # w38d2_vc_date = date_fields_complete(uniq_id, "w38d2_vc_arm_1", df)
+  # w38d3_vc_date = date_fields_complete(uniq_id, "w38d3_vc_arm_1", df)
+  # w38d4_vc_date = date_fields_complete(uniq_id, "w38d4_vc_arm_1", df)
+  # w38d1_vc_comp = form_fields_complete(uniq_id, "w38d1_vc_arm_1", df)
+  # w38d2_vc_comp = form_fields_complete(uniq_id, "w38d2_vc_arm_1", df)
+  # w38d3_vc_comp = form_fields_complete(uniq_id, "w38d3_vc_arm_1", df)
+  # w38d4_vc_comp = form_fields_complete(uniq_id, "w38d4_vc_arm_1", df)
+  # # week 039 video chat
+  # w39d1_vc_date = date_fields_complete(uniq_id, "w39d1_vc_arm_1", df)
+  # w39d2_vc_date = date_fields_complete(uniq_id, "w39d2_vc_arm_1", df)
+  # w39d3_vc_date = date_fields_complete(uniq_id, "w39d3_vc_arm_1", df)
+  # w39d4_vc_date = date_fields_complete(uniq_id, "w39d4_vc_arm_1", df)
+  # w39d1_vc_comp = form_fields_complete(uniq_id, "w39d1_vc_arm_1", df)
+  # w39d2_vc_comp = form_fields_complete(uniq_id, "w39d2_vc_arm_1", df)
+  # w39d3_vc_comp = form_fields_complete(uniq_id, "w39d3_vc_arm_1", df)
+  # w39d4_vc_comp = form_fields_complete(uniq_id, "w39d4_vc_arm_1", df)
+  # # week 040 video chat
+  # w40d1_vc_date = date_fields_complete(uniq_id, "w40d1_vc_arm_1", df)
+  # w40d2_vc_date = date_fields_complete(uniq_id, "w40d2_vc_arm_1", df)
+  # w40d3_vc_date = date_fields_complete(uniq_id, "w40d3_vc_arm_1", df)
+  # w40d4_vc_date = date_fields_complete(uniq_id, "w40d4_vc_arm_1", df)
+  # w40d1_vc_comp = form_fields_complete(uniq_id, "w40d1_vc_arm_1", df)
+  # w40d2_vc_comp = form_fields_complete(uniq_id, "w40d2_vc_arm_1", df)
+  # w40d3_vc_comp = form_fields_complete(uniq_id, "w40d3_vc_arm_1", df)
+  # w40d4_vc_comp = form_fields_complete(uniq_id, "w40d4_vc_arm_1", df)
+  # # week 041 video chat
+  # w41d1_vc_date = date_fields_complete(uniq_id, "w41d1_vc_arm_1", df)
+  # w41d2_vc_date = date_fields_complete(uniq_id, "w41d2_vc_arm_1", df)
+  # w41d3_vc_date = date_fields_complete(uniq_id, "w41d3_vc_arm_1", df)
+  # w41d4_vc_date = date_fields_complete(uniq_id, "w41d4_vc_arm_1", df)
+  # w41d1_vc_comp = form_fields_complete(uniq_id, "w41d1_vc_arm_1", df)
+  # w41d2_vc_comp = form_fields_complete(uniq_id, "w41d2_vc_arm_1", df)
+  # w41d3_vc_comp = form_fields_complete(uniq_id, "w41d3_vc_arm_1", df)
+  # w41d4_vc_comp = form_fields_complete(uniq_id, "w41d4_vc_arm_1", df)
+  # # week 042 video chat
+  # w42d1_vc_date = date_fields_complete(uniq_id, "w42d1_vc_arm_1", df)
+  # w42d2_vc_date = date_fields_complete(uniq_id, "w42d2_vc_arm_1", df)
+  # w42d3_vc_date = date_fields_complete(uniq_id, "w42d3_vc_arm_1", df)
+  # w42d4_vc_date = date_fields_complete(uniq_id, "w42d4_vc_arm_1", df)
+  # w42d1_vc_comp = form_fields_complete(uniq_id, "w42d1_vc_arm_1", df)
+  # w42d2_vc_comp = form_fields_complete(uniq_id, "w42d2_vc_arm_1", df)
+  # w42d3_vc_comp = form_fields_complete(uniq_id, "w42d3_vc_arm_1", df)
+  # w42d4_vc_comp = form_fields_complete(uniq_id, "w42d4_vc_arm_1", df)
+  # # week 043 video chat
+  # w43d1_vc_date = date_fields_complete(uniq_id, "w43d1_vc_arm_1", df)
+  # w43d2_vc_date = date_fields_complete(uniq_id, "w43d2_vc_arm_1", df)
+  # w43d3_vc_date = date_fields_complete(uniq_id, "w43d3_vc_arm_1", df)
+  # w43d4_vc_date = date_fields_complete(uniq_id, "w43d4_vc_arm_1", df)
+  # w43d1_vc_comp = form_fields_complete(uniq_id, "w43d1_vc_arm_1", df)
+  # w43d2_vc_comp = form_fields_complete(uniq_id, "w43d2_vc_arm_1", df)
+  # w43d3_vc_comp = form_fields_complete(uniq_id, "w43d3_vc_arm_1", df)
+  # w43d4_vc_comp = form_fields_complete(uniq_id, "w43d4_vc_arm_1", df)
+  # # week 044 video chat
+  # w44d1_vc_date = date_fields_complete(uniq_id, "w44d1_vc_arm_1", df)
+  # w44d2_vc_date = date_fields_complete(uniq_id, "w44d2_vc_arm_1", df)
+  # w44d3_vc_date = date_fields_complete(uniq_id, "w44d3_vc_arm_1", df)
+  # w44d4_vc_date = date_fields_complete(uniq_id, "w44d4_vc_arm_1", df)
+  # w44d1_vc_comp = form_fields_complete(uniq_id, "w44d1_vc_arm_1", df)
+  # w44d2_vc_comp = form_fields_complete(uniq_id, "w44d2_vc_arm_1", df)
+  # w44d3_vc_comp = form_fields_complete(uniq_id, "w44d3_vc_arm_1", df)
+  # w44d4_vc_comp = form_fields_complete(uniq_id, "w44d4_vc_arm_1", df)
+  # # week 045 video chat
+  # w45d1_vc_date = date_fields_complete(uniq_id, "w45d1_vc_arm_1", df)
+  # w45d2_vc_date = date_fields_complete(uniq_id, "w45d2_vc_arm_1", df)
+  # w45d3_vc_date = date_fields_complete(uniq_id, "w45d3_vc_arm_1", df)
+  # w45d4_vc_date = date_fields_complete(uniq_id, "w45d4_vc_arm_1", df)
+  # w45d1_vc_comp = form_fields_complete(uniq_id, "w45d1_vc_arm_1", df)
+  # w45d2_vc_comp = form_fields_complete(uniq_id, "w45d2_vc_arm_1", df)
+  # w45d3_vc_comp = form_fields_complete(uniq_id, "w45d3_vc_arm_1", df)
+  # w45d4_vc_comp = form_fields_complete(uniq_id, "w45d4_vc_arm_1", df)
+  # # week 046 video chat
+  # w46d1_vc_date = date_fields_complete(uniq_id, "w46d1_vc_arm_1", df)
+  # w46d2_vc_date = date_fields_complete(uniq_id, "w46d2_vc_arm_1", df)
+  # w46d3_vc_date = date_fields_complete(uniq_id, "w46d3_vc_arm_1", df)
+  # w46d4_vc_date = date_fields_complete(uniq_id, "w46d4_vc_arm_1", df)
+  # w46d1_vc_comp = form_fields_complete(uniq_id, "w46d1_vc_arm_1", df)
+  # w46d2_vc_comp = form_fields_complete(uniq_id, "w46d2_vc_arm_1", df)
+  # w46d3_vc_comp = form_fields_complete(uniq_id, "w46d3_vc_arm_1", df)
+  # w46d4_vc_comp = form_fields_complete(uniq_id, "w46d4_vc_arm_1", df)
+  # # week 047 video chat
+  # w47d1_vc_date = date_fields_complete(uniq_id, "w47d1_vc_arm_1", df)
+  # w47d2_vc_date = date_fields_complete(uniq_id, "w47d2_vc_arm_1", df)
+  # w47d3_vc_date = date_fields_complete(uniq_id, "w47d3_vc_arm_1", df)
+  # w47d4_vc_date = date_fields_complete(uniq_id, "w47d4_vc_arm_1", df)
+  # w47d1_vc_comp = form_fields_complete(uniq_id, "w47d1_vc_arm_1", df)
+  # w47d2_vc_comp = form_fields_complete(uniq_id, "w47d2_vc_arm_1", df)
+  # w47d3_vc_comp = form_fields_complete(uniq_id, "w47d3_vc_arm_1", df)
+  # w47d4_vc_comp = form_fields_complete(uniq_id, "w47d4_vc_arm_1", df)
+  # # week 048 video chat
+  # w48d1_vc_date = date_fields_complete(uniq_id, "w48d1_vc_arm_1", df)
+  # w48d2_vc_date = date_fields_complete(uniq_id, "w48d2_vc_arm_1", df)
+  # w48d3_vc_date = date_fields_complete(uniq_id, "w48d3_vc_arm_1", df)
+  # w48d4_vc_date = date_fields_complete(uniq_id, "w48d4_vc_arm_1", df)
+  # w48d1_vc_comp = form_fields_complete(uniq_id, "w48d1_vc_arm_1", df)
+  # w48d2_vc_comp = form_fields_complete(uniq_id, "w48d2_vc_arm_1", df)
+  # w48d3_vc_comp = form_fields_complete(uniq_id, "w48d3_vc_arm_1", df)
+  # w48d4_vc_comp = form_fields_complete(uniq_id, "w48d4_vc_arm_1", df)
   
   tibble(ts_sub_id,
          # # name
@@ -1038,104 +1055,104 @@ build_distilled_row <- function(uniq_id, df) {
          w45_tel_date,  w45_tel_comp,
          w46_tel_date,  w46_tel_comp,
          w47_tel_date,  w47_tel_comp,
-         w48_tel_date,  w48_tel_comp,
-         # daily video chat
-         w01d1_vc_date, w01d2_vc_date, w01d3_vc_date, w01d4_vc_date,
-         w01d1_vc_comp, w01d2_vc_comp, w01d3_vc_comp, w01d4_vc_comp,
-         w02d1_vc_date, w02d2_vc_date, w02d3_vc_date, w02d4_vc_date,
-         w02d1_vc_comp, w02d2_vc_comp, w02d3_vc_comp, w02d4_vc_comp,
-         w03d1_vc_date, w03d2_vc_date, w03d3_vc_date, w03d4_vc_date,
-         w03d1_vc_comp, w03d2_vc_comp, w03d3_vc_comp, w03d4_vc_comp,
-         w04d1_vc_date, w04d2_vc_date, w04d3_vc_date, w04d4_vc_date,
-         w04d1_vc_comp, w04d2_vc_comp, w04d3_vc_comp, w04d4_vc_comp,
-         w05d1_vc_date, w05d2_vc_date, w05d3_vc_date, w05d4_vc_date,
-         w05d1_vc_comp, w05d2_vc_comp, w05d3_vc_comp, w05d4_vc_comp,
-         w06d1_vc_date, w06d2_vc_date, w06d3_vc_date, w06d4_vc_date,
-         w06d1_vc_comp, w06d2_vc_comp, w06d3_vc_comp, w06d4_vc_comp,
-         w07d1_vc_date, w07d2_vc_date, w07d3_vc_date, w07d4_vc_date,
-         w07d1_vc_comp, w07d2_vc_comp, w07d3_vc_comp, w07d4_vc_comp,
-         w08d1_vc_date, w08d2_vc_date, w08d3_vc_date, w08d4_vc_date,
-         w08d1_vc_comp, w08d2_vc_comp, w08d3_vc_comp, w08d4_vc_comp,
-         w09d1_vc_date, w09d2_vc_date, w09d3_vc_date, w09d4_vc_date,
-         w09d1_vc_comp, w09d2_vc_comp, w09d3_vc_comp, w09d4_vc_comp,
-         w10d1_vc_date, w10d2_vc_date, w10d3_vc_date, w10d4_vc_date,
-         w10d1_vc_comp, w10d2_vc_comp, w10d3_vc_comp, w10d4_vc_comp,
-         w11d1_vc_date, w11d2_vc_date, w11d3_vc_date, w11d4_vc_date,
-         w11d1_vc_comp, w11d2_vc_comp, w11d3_vc_comp, w11d4_vc_comp,
-         w12d1_vc_date, w12d2_vc_date, w12d3_vc_date, w12d4_vc_date,
-         w12d1_vc_comp, w12d2_vc_comp, w12d3_vc_comp, w12d4_vc_comp,
-         w13d1_vc_date, w13d2_vc_date, w13d3_vc_date, w13d4_vc_date,
-         w13d1_vc_comp, w13d2_vc_comp, w13d3_vc_comp, w13d4_vc_comp,
-         w14d1_vc_date, w14d2_vc_date, w14d3_vc_date, w14d4_vc_date,
-         w14d1_vc_comp, w14d2_vc_comp, w14d3_vc_comp, w14d4_vc_comp,
-         w15d1_vc_date, w15d2_vc_date, w15d3_vc_date, w15d4_vc_date,
-         w15d1_vc_comp, w15d2_vc_comp, w15d3_vc_comp, w15d4_vc_comp,
-         w16d1_vc_date, w16d2_vc_date, w16d3_vc_date, w16d4_vc_date,
-         w16d1_vc_comp, w16d2_vc_comp, w16d3_vc_comp, w16d4_vc_comp,
-         w17d1_vc_date, w17d2_vc_date, w17d3_vc_date, w17d4_vc_date,
-         w17d1_vc_comp, w17d2_vc_comp, w17d3_vc_comp, w17d4_vc_comp,
-         w18d1_vc_date, w18d2_vc_date, w18d3_vc_date, w18d4_vc_date,
-         w18d1_vc_comp, w18d2_vc_comp, w18d3_vc_comp, w18d4_vc_comp,
-         w19d1_vc_date, w19d2_vc_date, w19d3_vc_date, w19d4_vc_date,
-         w19d1_vc_comp, w19d2_vc_comp, w19d3_vc_comp, w19d4_vc_comp,
-         w20d1_vc_date, w20d2_vc_date, w20d3_vc_date, w20d4_vc_date,
-         w20d1_vc_comp, w20d2_vc_comp, w20d3_vc_comp, w20d4_vc_comp,
-         w21d1_vc_date, w21d2_vc_date, w21d3_vc_date, w21d4_vc_date,
-         w21d1_vc_comp, w21d2_vc_comp, w21d3_vc_comp, w21d4_vc_comp,
-         w22d1_vc_date, w22d2_vc_date, w22d3_vc_date, w22d4_vc_date,
-         w22d1_vc_comp, w22d2_vc_comp, w22d3_vc_comp, w22d4_vc_comp,
-         w23d1_vc_date, w23d2_vc_date, w23d3_vc_date, w23d4_vc_date,
-         w23d1_vc_comp, w23d2_vc_comp, w23d3_vc_comp, w23d4_vc_comp,
-         w24d1_vc_date, w24d2_vc_date, w24d3_vc_date, w24d4_vc_date,
-         w24d1_vc_comp, w24d2_vc_comp, w24d3_vc_comp, w24d4_vc_comp,
-         w25d1_vc_date, w25d2_vc_date, w25d3_vc_date, w25d4_vc_date,
-         w25d1_vc_comp, w25d2_vc_comp, w25d3_vc_comp, w25d4_vc_comp,
-         w26d1_vc_date, w26d2_vc_date, w26d3_vc_date, w26d4_vc_date,
-         w26d1_vc_comp, w26d2_vc_comp, w26d3_vc_comp, w26d4_vc_comp,
-         w27d1_vc_date, w27d2_vc_date, w27d3_vc_date, w27d4_vc_date,
-         w27d1_vc_comp, w27d2_vc_comp, w27d3_vc_comp, w27d4_vc_comp,
-         w28d1_vc_date, w28d2_vc_date, w28d3_vc_date, w28d4_vc_date,
-         w28d1_vc_comp, w28d2_vc_comp, w28d3_vc_comp, w28d4_vc_comp,
-         w29d1_vc_date, w29d2_vc_date, w29d3_vc_date, w29d4_vc_date,
-         w29d1_vc_comp, w29d2_vc_comp, w29d3_vc_comp, w29d4_vc_comp,
-         w30d1_vc_date, w30d2_vc_date, w30d3_vc_date, w30d4_vc_date,
-         w30d1_vc_comp, w30d2_vc_comp, w30d3_vc_comp, w30d4_vc_comp,
-         w31d1_vc_date, w31d2_vc_date, w31d3_vc_date, w31d4_vc_date,
-         w31d1_vc_comp, w31d2_vc_comp, w31d3_vc_comp, w31d4_vc_comp,
-         w32d1_vc_date, w32d2_vc_date, w32d3_vc_date, w32d4_vc_date,
-         w32d1_vc_comp, w32d2_vc_comp, w32d3_vc_comp, w32d4_vc_comp,
-         w33d1_vc_date, w33d2_vc_date, w33d3_vc_date, w33d4_vc_date,
-         w33d1_vc_comp, w33d2_vc_comp, w33d3_vc_comp, w33d4_vc_comp,
-         w34d1_vc_date, w34d2_vc_date, w34d3_vc_date, w34d4_vc_date,
-         w34d1_vc_comp, w34d2_vc_comp, w34d3_vc_comp, w34d4_vc_comp,
-         w35d1_vc_date, w35d2_vc_date, w35d3_vc_date, w35d4_vc_date,
-         w35d1_vc_comp, w35d2_vc_comp, w35d3_vc_comp, w35d4_vc_comp,
-         w36d1_vc_date, w36d2_vc_date, w36d3_vc_date, w36d4_vc_date,
-         w36d1_vc_comp, w36d2_vc_comp, w36d3_vc_comp, w36d4_vc_comp,
-         w37d1_vc_date, w37d2_vc_date, w37d3_vc_date, w37d4_vc_date,
-         w37d1_vc_comp, w37d2_vc_comp, w37d3_vc_comp, w37d4_vc_comp,
-         w38d1_vc_date, w38d2_vc_date, w38d3_vc_date, w38d4_vc_date,
-         w38d1_vc_comp, w38d2_vc_comp, w38d3_vc_comp, w38d4_vc_comp,
-         w39d1_vc_date, w39d2_vc_date, w39d3_vc_date, w39d4_vc_date,
-         w39d1_vc_comp, w39d2_vc_comp, w39d3_vc_comp, w39d4_vc_comp,
-         w40d1_vc_date, w40d2_vc_date, w40d3_vc_date, w40d4_vc_date,
-         w40d1_vc_comp, w40d2_vc_comp, w40d3_vc_comp, w40d4_vc_comp,
-         w41d1_vc_date, w41d2_vc_date, w41d3_vc_date, w41d4_vc_date,
-         w41d1_vc_comp, w41d2_vc_comp, w41d3_vc_comp, w41d4_vc_comp,
-         w42d1_vc_date, w42d2_vc_date, w42d3_vc_date, w42d4_vc_date,
-         w42d1_vc_comp, w42d2_vc_comp, w42d3_vc_comp, w42d4_vc_comp,
-         w43d1_vc_date, w43d2_vc_date, w43d3_vc_date, w43d4_vc_date,
-         w43d1_vc_comp, w43d2_vc_comp, w43d3_vc_comp, w43d4_vc_comp,
-         w44d1_vc_date, w44d2_vc_date, w44d3_vc_date, w44d4_vc_date,
-         w44d1_vc_comp, w44d2_vc_comp, w44d3_vc_comp, w44d4_vc_comp,
-         w45d1_vc_date, w45d2_vc_date, w45d3_vc_date, w45d4_vc_date,
-         w45d1_vc_comp, w45d2_vc_comp, w45d3_vc_comp, w45d4_vc_comp,
-         w46d1_vc_date, w46d2_vc_date, w46d3_vc_date, w46d4_vc_date,
-         w46d1_vc_comp, w46d2_vc_comp, w46d3_vc_comp, w46d4_vc_comp,
-         w47d1_vc_date, w47d2_vc_date, w47d3_vc_date, w47d4_vc_date,
-         w47d1_vc_comp, w47d2_vc_comp, w47d3_vc_comp, w47d4_vc_comp,
-         w48d1_vc_date, w48d2_vc_date, w48d3_vc_date, w48d4_vc_date,
-         w48d1_vc_comp, w48d2_vc_comp, w48d3_vc_comp, w48d4_vc_comp
+         w48_tel_date,  w48_tel_comp #,
+         # # daily video chat
+         # w01d1_vc_date, w01d2_vc_date, w01d3_vc_date, w01d4_vc_date,
+         # w01d1_vc_comp, w01d2_vc_comp, w01d3_vc_comp, w01d4_vc_comp,
+         # w02d1_vc_date, w02d2_vc_date, w02d3_vc_date, w02d4_vc_date,
+         # w02d1_vc_comp, w02d2_vc_comp, w02d3_vc_comp, w02d4_vc_comp,
+         # w03d1_vc_date, w03d2_vc_date, w03d3_vc_date, w03d4_vc_date,
+         # w03d1_vc_comp, w03d2_vc_comp, w03d3_vc_comp, w03d4_vc_comp,
+         # w04d1_vc_date, w04d2_vc_date, w04d3_vc_date, w04d4_vc_date,
+         # w04d1_vc_comp, w04d2_vc_comp, w04d3_vc_comp, w04d4_vc_comp,
+         # w05d1_vc_date, w05d2_vc_date, w05d3_vc_date, w05d4_vc_date,
+         # w05d1_vc_comp, w05d2_vc_comp, w05d3_vc_comp, w05d4_vc_comp,
+         # w06d1_vc_date, w06d2_vc_date, w06d3_vc_date, w06d4_vc_date,
+         # w06d1_vc_comp, w06d2_vc_comp, w06d3_vc_comp, w06d4_vc_comp,
+         # w07d1_vc_date, w07d2_vc_date, w07d3_vc_date, w07d4_vc_date,
+         # w07d1_vc_comp, w07d2_vc_comp, w07d3_vc_comp, w07d4_vc_comp,
+         # w08d1_vc_date, w08d2_vc_date, w08d3_vc_date, w08d4_vc_date,
+         # w08d1_vc_comp, w08d2_vc_comp, w08d3_vc_comp, w08d4_vc_comp,
+         # w09d1_vc_date, w09d2_vc_date, w09d3_vc_date, w09d4_vc_date,
+         # w09d1_vc_comp, w09d2_vc_comp, w09d3_vc_comp, w09d4_vc_comp,
+         # w10d1_vc_date, w10d2_vc_date, w10d3_vc_date, w10d4_vc_date,
+         # w10d1_vc_comp, w10d2_vc_comp, w10d3_vc_comp, w10d4_vc_comp,
+         # w11d1_vc_date, w11d2_vc_date, w11d3_vc_date, w11d4_vc_date,
+         # w11d1_vc_comp, w11d2_vc_comp, w11d3_vc_comp, w11d4_vc_comp,
+         # w12d1_vc_date, w12d2_vc_date, w12d3_vc_date, w12d4_vc_date,
+         # w12d1_vc_comp, w12d2_vc_comp, w12d3_vc_comp, w12d4_vc_comp,
+         # w13d1_vc_date, w13d2_vc_date, w13d3_vc_date, w13d4_vc_date,
+         # w13d1_vc_comp, w13d2_vc_comp, w13d3_vc_comp, w13d4_vc_comp,
+         # w14d1_vc_date, w14d2_vc_date, w14d3_vc_date, w14d4_vc_date,
+         # w14d1_vc_comp, w14d2_vc_comp, w14d3_vc_comp, w14d4_vc_comp,
+         # w15d1_vc_date, w15d2_vc_date, w15d3_vc_date, w15d4_vc_date,
+         # w15d1_vc_comp, w15d2_vc_comp, w15d3_vc_comp, w15d4_vc_comp,
+         # w16d1_vc_date, w16d2_vc_date, w16d3_vc_date, w16d4_vc_date,
+         # w16d1_vc_comp, w16d2_vc_comp, w16d3_vc_comp, w16d4_vc_comp,
+         # w17d1_vc_date, w17d2_vc_date, w17d3_vc_date, w17d4_vc_date,
+         # w17d1_vc_comp, w17d2_vc_comp, w17d3_vc_comp, w17d4_vc_comp,
+         # w18d1_vc_date, w18d2_vc_date, w18d3_vc_date, w18d4_vc_date,
+         # w18d1_vc_comp, w18d2_vc_comp, w18d3_vc_comp, w18d4_vc_comp,
+         # w19d1_vc_date, w19d2_vc_date, w19d3_vc_date, w19d4_vc_date,
+         # w19d1_vc_comp, w19d2_vc_comp, w19d3_vc_comp, w19d4_vc_comp,
+         # w20d1_vc_date, w20d2_vc_date, w20d3_vc_date, w20d4_vc_date,
+         # w20d1_vc_comp, w20d2_vc_comp, w20d3_vc_comp, w20d4_vc_comp,
+         # w21d1_vc_date, w21d2_vc_date, w21d3_vc_date, w21d4_vc_date,
+         # w21d1_vc_comp, w21d2_vc_comp, w21d3_vc_comp, w21d4_vc_comp,
+         # w22d1_vc_date, w22d2_vc_date, w22d3_vc_date, w22d4_vc_date,
+         # w22d1_vc_comp, w22d2_vc_comp, w22d3_vc_comp, w22d4_vc_comp,
+         # w23d1_vc_date, w23d2_vc_date, w23d3_vc_date, w23d4_vc_date,
+         # w23d1_vc_comp, w23d2_vc_comp, w23d3_vc_comp, w23d4_vc_comp,
+         # w24d1_vc_date, w24d2_vc_date, w24d3_vc_date, w24d4_vc_date,
+         # w24d1_vc_comp, w24d2_vc_comp, w24d3_vc_comp, w24d4_vc_comp,
+         # w25d1_vc_date, w25d2_vc_date, w25d3_vc_date, w25d4_vc_date,
+         # w25d1_vc_comp, w25d2_vc_comp, w25d3_vc_comp, w25d4_vc_comp,
+         # w26d1_vc_date, w26d2_vc_date, w26d3_vc_date, w26d4_vc_date,
+         # w26d1_vc_comp, w26d2_vc_comp, w26d3_vc_comp, w26d4_vc_comp,
+         # w27d1_vc_date, w27d2_vc_date, w27d3_vc_date, w27d4_vc_date,
+         # w27d1_vc_comp, w27d2_vc_comp, w27d3_vc_comp, w27d4_vc_comp,
+         # w28d1_vc_date, w28d2_vc_date, w28d3_vc_date, w28d4_vc_date,
+         # w28d1_vc_comp, w28d2_vc_comp, w28d3_vc_comp, w28d4_vc_comp,
+         # w29d1_vc_date, w29d2_vc_date, w29d3_vc_date, w29d4_vc_date,
+         # w29d1_vc_comp, w29d2_vc_comp, w29d3_vc_comp, w29d4_vc_comp,
+         # w30d1_vc_date, w30d2_vc_date, w30d3_vc_date, w30d4_vc_date,
+         # w30d1_vc_comp, w30d2_vc_comp, w30d3_vc_comp, w30d4_vc_comp,
+         # w31d1_vc_date, w31d2_vc_date, w31d3_vc_date, w31d4_vc_date,
+         # w31d1_vc_comp, w31d2_vc_comp, w31d3_vc_comp, w31d4_vc_comp,
+         # w32d1_vc_date, w32d2_vc_date, w32d3_vc_date, w32d4_vc_date,
+         # w32d1_vc_comp, w32d2_vc_comp, w32d3_vc_comp, w32d4_vc_comp,
+         # w33d1_vc_date, w33d2_vc_date, w33d3_vc_date, w33d4_vc_date,
+         # w33d1_vc_comp, w33d2_vc_comp, w33d3_vc_comp, w33d4_vc_comp,
+         # w34d1_vc_date, w34d2_vc_date, w34d3_vc_date, w34d4_vc_date,
+         # w34d1_vc_comp, w34d2_vc_comp, w34d3_vc_comp, w34d4_vc_comp,
+         # w35d1_vc_date, w35d2_vc_date, w35d3_vc_date, w35d4_vc_date,
+         # w35d1_vc_comp, w35d2_vc_comp, w35d3_vc_comp, w35d4_vc_comp,
+         # w36d1_vc_date, w36d2_vc_date, w36d3_vc_date, w36d4_vc_date,
+         # w36d1_vc_comp, w36d2_vc_comp, w36d3_vc_comp, w36d4_vc_comp,
+         # w37d1_vc_date, w37d2_vc_date, w37d3_vc_date, w37d4_vc_date,
+         # w37d1_vc_comp, w37d2_vc_comp, w37d3_vc_comp, w37d4_vc_comp,
+         # w38d1_vc_date, w38d2_vc_date, w38d3_vc_date, w38d4_vc_date,
+         # w38d1_vc_comp, w38d2_vc_comp, w38d3_vc_comp, w38d4_vc_comp,
+         # w39d1_vc_date, w39d2_vc_date, w39d3_vc_date, w39d4_vc_date,
+         # w39d1_vc_comp, w39d2_vc_comp, w39d3_vc_comp, w39d4_vc_comp,
+         # w40d1_vc_date, w40d2_vc_date, w40d3_vc_date, w40d4_vc_date,
+         # w40d1_vc_comp, w40d2_vc_comp, w40d3_vc_comp, w40d4_vc_comp,
+         # w41d1_vc_date, w41d2_vc_date, w41d3_vc_date, w41d4_vc_date,
+         # w41d1_vc_comp, w41d2_vc_comp, w41d3_vc_comp, w41d4_vc_comp,
+         # w42d1_vc_date, w42d2_vc_date, w42d3_vc_date, w42d4_vc_date,
+         # w42d1_vc_comp, w42d2_vc_comp, w42d3_vc_comp, w42d4_vc_comp,
+         # w43d1_vc_date, w43d2_vc_date, w43d3_vc_date, w43d4_vc_date,
+         # w43d1_vc_comp, w43d2_vc_comp, w43d3_vc_comp, w43d4_vc_comp,
+         # w44d1_vc_date, w44d2_vc_date, w44d3_vc_date, w44d4_vc_date,
+         # w44d1_vc_comp, w44d2_vc_comp, w44d3_vc_comp, w44d4_vc_comp,
+         # w45d1_vc_date, w45d2_vc_date, w45d3_vc_date, w45d4_vc_date,
+         # w45d1_vc_comp, w45d2_vc_comp, w45d3_vc_comp, w45d4_vc_comp,
+         # w46d1_vc_date, w46d2_vc_date, w46d3_vc_date, w46d4_vc_date,
+         # w46d1_vc_comp, w46d2_vc_comp, w46d3_vc_comp, w46d4_vc_comp,
+         # w47d1_vc_date, w47d2_vc_date, w47d3_vc_date, w47d4_vc_date,
+         # w47d1_vc_comp, w47d2_vc_comp, w47d3_vc_comp, w47d4_vc_comp,
+         # w48d1_vc_date, w48d2_vc_date, w48d3_vc_date, w48d4_vc_date,
+         # w48d1_vc_comp, w48d2_vc_comp, w48d3_vc_comp, w48d4_vc_comp
   )
 }
 
@@ -1290,6 +1307,32 @@ data_summ <- data_dstl %>%
       stage_comp == "w48_tel"  ~ "finished"
     )
   )
+
+data_summ <- data_summ %>% 
+  mutate(stage_comp = case_when(
+    stage_comp == "scrn_tel" ~ "Telephone Screening",
+    stage_comp == "scrn_v"   ~ "Home Screening Visit",
+    stage_comp == "bv1"      ~ "Baseline Visit 1",
+    stage_comp == "bl_cdx"   ~ "Baseline Clinician Diagnosis",
+    stage_comp == "bv2"      ~ "Baseline Visit 2",
+    stage_comp == "admin"    ~ "Randomization",
+    stage_comp == "bl_mri"   ~ "Baseline MRI",
+    str_detect(stage_comp, "^w\\d{2}_tel$") ~ str_replace(stage_comp, "w(\\d{2})_tel", "Week \\1")
+  )) %>% 
+  mutate(stage_next = case_when(
+    stage_next == "scrn_tel" ~ "Telephone Screening",
+    stage_next == "scrn_v"   ~ "Home Screening Visit",
+    stage_next == "bv1"      ~ "Baseline Visit 1",
+    stage_next == "bl_cdx"   ~ "Baseline Clinician Diagnosis",
+    stage_next == "bv2"      ~ "Baseline Visit 2",
+    stage_next == "admin"    ~ "Randomization",
+    stage_comp == "bl_mri"   ~ "Baseline MRI",
+    str_detect(stage_next, "^w\\d{2}_tel$") ~ str_replace(stage_next, "w(\\d{2})_tel", "Week \\1")
+  )) %>% 
+  rename(`Participant ID` = ts_sub_id,
+         `Completed Stage` = stage_comp,
+         `Next Stage`      = stage_next)
+  
 
 saveRDS(data_summ, "./rds/data_summ.Rds")
 
