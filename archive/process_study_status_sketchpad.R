@@ -1,4 +1,4 @@
-# process_study_status.R
+# process_study_status_sketchpad.R
 
 library(dplyr)
 library(stringr)
