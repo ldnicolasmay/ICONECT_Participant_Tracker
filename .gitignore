@@ -3,12 +3,13 @@
 .RData
 .Ruserdata
 .DS_Store
+*.rds
 *.csv
 *.xls
 *.xlsx
+*.xlsx*
 *.txt
 *.doc
 *.docx
 *.pdf
 *.eml
-*.rds

@@ -100,7 +100,7 @@ data_slct_fltr_1 <- data_slct_fltr %>%
   select(ts_sub_id
          , redcap_event_name
          # , ts_lfn, ts_pfn, ts_lln
-         )
+  )
 data_slct_fltr_2 <- data_slct_fltr %>% 
   select(ends_with("_dat"), ends_with("_dtc"), ends_with("date"))
 data_slct_fltr_3 <- data_slct_fltr %>% 
@@ -128,11 +128,11 @@ week_vctr <- 1:48
 
 stages_not_is_na <- 
   c(
-      # telephone screening
+    # telephone screening
     list(
       scrn_tel_arm_1 = c("ts_dat")
     ),
-      # home screening
+    # home screening
     list(
       scrn_v_arm_1   = c("con_dtc",
                          "em_dat",
@@ -148,25 +148,25 @@ stages_not_is_na <-
                          "elg_dat",
                          "mrp_dat")
     ),
-      # baseline visit 1
+    # baseline visit 1
     list(
       bv1_arm_1      = c("cdr_dat",
                          "phy_dat",
                          "c2_dat",
                          "neo_dat")
     ),
-      # baseline clinician dx
+    # baseline clinician dx
     list(
       bl_cdx_arm_1   = c("d1_dat")
     ),
-      # baseline visit 2
+    # baseline visit 2
     list(
       bv2_arm_1      = c("date",
                          "otd_dat",
                          "fhd_dat",
                          "ap_dat")
     ),
-      # randomization
+    # randomization
     list(
       admin_arm_1    = character(0) # No dates for video chat randomization
     ),
@@ -249,11 +249,11 @@ stages_not_is_na <-
   )
 
 stages_eq_two <- 
-    # telephone screening
+  # telephone screening
   c(
     list(
       scrn_tel_arm_1 = c("telephone_screening_complete")
-    # screening visit
+      # screening visit
     ),
     list(
       scrn_v_arm_1   = c("consent_admin_form_complete",
@@ -1332,9 +1332,149 @@ data_summ <- data_summ %>%
   rename(`Participant ID` = ts_sub_id,
          `Completed Stage` = stage_comp,
          `Next Stage`      = stage_next)
-  
+
 
 saveRDS(data_summ, "./rds/data_summ.Rds")
+
+
+
+####
+
+df_test <-
+  tibble(
+    ID = as.integer(c(1, 2, 2, 3, 3, 3, 4, 5, 6)),
+    f1 = c("a", "a", NA, "a", NA, NA, NA, NA, NA),
+    f2 = c(NA, NA, "b", NA, "b", NA, NA, "b", NA),
+    f3 = c(NA, NA, NA, NA, NA, "c", NA, NA, "c")
+  )
+
+id2_1 <- c("a", NA, NA)
+id2_2 <- c(NA, "b", NA)
+
+id2 <- id2_1
+id2[is.na(id2_1)] <- id2_2[is.na(id2_1)]
+id2[is.na(id2_2)] <- id2_1[is.na(id2_2)]
+id2
+
+zip_vectors <- function(v1, v2) {
+  v <- v1
+  v[is.na(v1)] <- v2[is.na(v1)]
+  v[is.na(v2)] <- v1[is.na(v2)]
+  v
+}
+
+zip_vectors(id2_1, id2_2)
+
+isolate_df_rows_by_id <- function(df, id_col, id) {
+  df %>% 
+    filter(!!enquo(id_col) == id)
+}
+
+isolate_df_rows_by_id(df_test, ID, 1)
+isolate_df_rows_by_id(df_test, ID, 2)
+isolate_df_rows_by_id(df_test, ID, 7)
+
+# merge_df_rows_by_id_and_cols <- function(df, id_col, id, ...) {
+#   
+#   df_iso <- isolate_df_rows_by_id(df, !!enquo(id_col), id)
+#   
+#   vct_list <- list()
+#   
+#   for (i in seq_len(nrow(df_iso))) {
+#     vct_list[[i]] <- df_iso %>% select(...) %>% slice(i) %>% as.character()
+#   }
+#   
+#   if (length(vct_list) == 0) {
+#     vct <- NULL
+#   } else if (length(vct_list) == 1) {
+#     vct <- vct_list[[1]]
+#   } else if (length(vct_list) >= 2) {
+#     vct <- vct_list[[1]]
+#     for (i in 2:(length(vct_list))) {
+#       vct <- zip_vectors(vct, vct_list[[i]])
+#     }
+#   }
+#   
+#   vct
+# }
+
+# merge_df_rows_by_id_and_cols <- function(id, id_col, df, ...) {
+#   
+#   df_iso <- df %>% 
+#     select(!!enquo(id_col), ...) %>%  
+#     isolate_df_rows_by_id(!!enquo(id_col), id)
+#   
+#   # df_iso
+#   
+#   if (nrow(df_iso) == 0) {
+#     return(NULL)
+#   } else if (nrow(df_iso) == 1) {
+#     return(df_iso)
+#   }
+# 
+#   df_ret <- df_iso %>% slice(1)
+# 
+#   for (i in 2:nrow(df_iso)) {
+#     v1 <- df_ret %>% select(...) %>% slice(1) %>% as.character()
+#     v2 <- df_iso %>% select(...) %>% slice(i) %>% as.character()
+#     v <- zip_vectors(v1, v2)
+# 
+#     df_ret[1, as.character(enexprs(...))] <- v
+#   }
+# 
+#   df_ret
+# }
+
+merge_df_rows_by_id_and_cols <- function(id, id_col, df, cols_vct) {
+
+  # print(cols_vct)
+  cols <- parse_exprs(cols_vct)
+  # print(foo)
+    
+  df_iso <- df %>%
+    select(!!enquo(id_col), !!!cols) %>% 
+    isolate_df_rows_by_id(!!enquo(id_col), id)
+  
+  if (nrow(df_iso) == 0L) {
+    return(NULL)
+  } else if (nrow(df_iso) == 1L) {
+    return(df_iso)
+  }
+  
+  df_ret <- df_iso %>% slice(1L)
+  
+  for (i in 2:nrow(df_iso)) {
+    v1 <- df_ret %>% select(!!!cols) %>% slice(1L) %>% as.character()
+    v2 <- df_iso %>% select(!!!cols) %>% slice(i) %>% as.character()
+    v <- zip_vectors(v1, v2)
+    
+    df_ret[1, as.character(cols_vct)] <- v
+  }
+  
+  # df_iso
+  df_ret
+}
+
+merge_df_rows_by_id_and_cols(1, ID, df_test, c("f1", "f2", "f3"))
+merge_df_rows_by_id_and_cols(2, ID, df_test, c("f1", "f2", "f3"))
+merge_df_rows_by_id_and_cols(3, ID, df_test, c("f1", "f2", "f3"))
+merge_df_rows_by_id_and_cols(4, ID, df_test, c("f1", "f2", "f3"))
+merge_df_rows_by_id_and_cols(5, ID, df_test, c("f1", "f2", "f3"))
+merge_df_rows_by_id_and_cols(6, ID, df_test, c("f1", "f2", "f3"))
+merge_df_rows_by_id_and_cols(7, ID, df_test, c("f1", "f2", "f3"))
+
+my_cols <- c("f1", "f2", "f3")
+merge_df_rows_by_id_and_cols(1, ID, df_test, my_cols)
+merge_df_rows_by_id_and_cols(2, ID, df_test, my_cols)
+
+
+# merge_df_rows_by_id_and_cols(1, ID, df_test, f1, f2, f3)
+# merge_df_rows_by_id_and_cols(2, ID, df_test, f1, f2, f3)
+
+# purrr::map_dfr(1:6, merge_df_rows_by_id_and_cols, ID, df_test, f1, f2, f3)
+
+
+
 
 
 ###@    #==--  :  --==#    @##==---==##@##==---==##@    #==--  :  --==#    @###
