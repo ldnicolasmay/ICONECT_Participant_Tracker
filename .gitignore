@@ -13,3 +13,7 @@
 *.docx
 *.pdf
 *.eml
+*old*
+*sketchpad*
+*process_study_status*
+*.sh
