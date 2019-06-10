@@ -1,4 +1,4 @@
-# get_data_csv_helpers.R
+# get_data_helpers.R
 
 #@##==---==##@   @##==---==##@    #==-- --==#    @##==---==##@   @##==---==##@#
 ##==---==##@   #   @##==---==##@    #==-==#    @##==---==##@   #   @##==---==##
@@ -6,7 +6,7 @@
 #--==##@    #==-==#    @##==---==##@   #   @##==---==##@    #==-==#    @##==--#
 #==##@    #==-- --==#    @##==---==##@   @##==---==##@    #==-- --==#    @##==#
 ###@                                                                       @###
-###                 HELPER FUNCTIONS FOR `get_data_csv.R`                   ###
+###                 HELPER FUNCTIONS FOR `get_data_api.R`                   ###
 ###@                                                                       @###
 #==##@    #==-- --==#    @##==---==##@   @##==---==##@    #==-- --==#    @##==#
 #--==##@    #==-==#    @##==---==##@   #   @##==---==##@    #==-==#    @##==--#
@@ -22,6 +22,7 @@
 #' the redcap_event_name string in `proxies_df`
 #'
 reduce_df_by_proxy_field_ren <- function(ren_str, df, proxies_df) {
+  # print(ren_str)
   df %>%
     filter(redcap_event_name %in%
              pull(filter(proxies_df, REN == ren_str), REN)) %>%
@@ -154,10 +155,62 @@ add_missing_fields <- function(df, ren, proxy_fields_df) {
 
 }
 
+#' `add_complete_col`
+#'
+#' Given a df, redcap_event_name string, and `proxy_fields_df`,
+#' add a column that shows whether a given stage is complete
+#' for each participant
+#'
+add_complete_col <- function(df, ren, proxy_fields_df) {
+
+  # select_proxy_fields_df = proxy_fields_df %>%
+  #   select(Field, Form, REN) %>%
+  #   filter(REN == ren)
+  #
+  # select_proxy_fields_flds = select_proxy_fields_df %>%
+  #   pull(Field)
+
+  df %>%
+    rowwise() %>%
+    mutate(complete = case_when(
+      sum(is.na(data)) == 0 ~ "Yes",
+      sum(!is.na(data)) == 0 ~ "No",
+      TRUE ~ "Pending"
+    )) %>%
+    ungroup()
+}
+
+#' `add_status_col`
+#'
+#' 1 In Screening
+#' 2 Screen Failure
+#' 3 Enrolled
+#' 4 Active
+#' 5 In Follow-Up
+#' 6 Discontinued
+#'
+add_status_col <- function(df, ren, proxy_fields_df) {
+  if ("ps_stt" %in% names(df[[1, "data"]])) {
+  df %>%
+    rowwise() %>%
+    mutate(complete = case_when(
+      data[[1, "ps_stt"]] == 1 ~ "In Screening",
+      data[[1, "ps_stt"]] == 2 ~ "Screen Failure",
+      data[[1, "ps_stt"]] == 3 ~ "Enrolled",
+      data[[1, "ps_stt"]] == 4 ~ "Active",
+      data[[1, "ps_stt"]] == 5 ~ "In Follow-Up",
+      data[[1, "ps_stt"]] == 6 ~ "Discontinued",
+      TRUE ~ NA_character_
+    )) %>%
+    ungroup()
+  }
+}
+
 #' `add_missing_forms_col`
 #'
 #' Given a df, redcap_even_name string, and `proxy_fields_df`,
-#' add columns that identify which forms are missing for each participant
+#' add columns that identify which forms are missing
+#' for each participant
 #'
 add_missing_forms_col <- function(df, ren, proxy_fields_df) {
 

@@ -30,66 +30,18 @@ suppressMessages( library(stringr) )
 
 
 # LOAD USEFUL GLOBALS / FUNCTIONS ----
+wd_path <- paste0("~/Box Sync/Documents/I-CONECT/",
+                  "Documents-USB/ICONECT_Participant_Tracker/")
+source(paste0(wd_path, "get_data_helpers.R"))
+source("~/Box Sync/Documents/R_helpers/config.R")
 
-source("./get_data_csv_helpers.R")
 
-
-# GET RAW DATA (FROM CSV) ----
-
-# Read raw study data from freshest CSV
-df_icdd_csvs <-
-  file.info(paste0("./data_dump/", list.files("./data_dump/"))) %>%
-  as_tibble(rownames = "filepath") %>%
-  filter(!isdir) %>%
-  select(filepath) %>%
-  mutate(dl_time =
-           str_extract(filepath, "\\d{4}-\\d{2}-\\d{2}_\\d{4}") %>%
-           str_replace("(_)(\\d{2})(\\d{2})", " \\2:\\3") %>%
-           str_c(":00") %>%
-           lubridate::as_datetime()
-  )
-
-df_icdd_csvs_latest <-
-  df_icdd_csvs %>%
-  arrange(desc(dl_time)) %>%
-  slice(1L)
-
-# Throw a colorful warning if the latest data CSV wasn't downloaded today
-redd <- make_style("#FF0000")
-orng <- make_style("#FF7700")
-yllw <- make_style("#FFFF00")
-grnn <- make_style("#00DD00")
-bluu <- make_style("#2B2BFF")
-slvr <- silver
-
-warning_bar <- "|------------========= WARNING =========------------|\n"
-warning_msg <- "| The most recent data CSV was not downloaded today |\n"
-warning_msg_length <- nchar(warning_msg)
-if (as.Date(df_icdd_csvs_latest[["dl_time"]]) != Sys.Date()) {
-  warning(
-    bold(
-      paste0("\n",
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             redd(warning_bar),
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             orng(warning_bar),
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             slvr(warning_msg),
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             yllw(warning_msg),
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             slvr(warning_msg),
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             grnn(warning_bar),
-             strrep(" ", (80 - warning_msg_length) %/% 2),
-             bluu(warning_bar))))
-}
-
-df <- read_csv(df_icdd_csvs_latest[[1, "filepath"]],
-               col_types = cols(.default = col_character()))
+# GET RAW DATA (VIA API) ----
 
 # Read proxy fields data from hand-built XLSX
-proxy_fields_df <- readxl::read_excel("./proxy_fields.xlsx")
+proxy_fields_df <- readxl::read_excel(paste0(wd_path, "proxy_fields.xlsx"))
+# proxy_fields_df <- read_csv(paste0(wd_path, "proxy_fields.csv"),
+#                             col_types = cols(.default = col_character()))
 
 # Define study data fields to keep
 keeper_fields <-
@@ -98,22 +50,54 @@ keeper_fields <-
     , "redcap_event_name"
     , "redcap_repeat_instrument"
     , "redcap_repeat_instance"
-    , "ps_stt"
+    # , "ps_stt"
     , unique(proxy_fields_df$Field)
   )
+
+keeper_fields_collapsed <- keeper_fields %>%
+  str_replace(
+    "redcap_event_name|redcap_repeat_instrument|redcap_repeat_instance", ""
+  ) %>%
+  stringi::stri_remove_empty() %>%
+  paste(collapse = ",")
+
+cat("Downloading JSON...")
+
+json_ic <- RCurl::postForm(
+  uri     = OHSU_REDCAP_API_URI,
+  token   = OHSU_REDCAP_API_MAIN_TOKEN,
+  content = 'record',
+  format  = 'json',
+  type    = 'flat',
+  fields  = keeper_fields_collapsed,
+  rawOrLabel             = 'raw',
+  rawOrLabelHeaders      = 'raw',
+  exportCheckboxLabel    = 'false',
+  exportSurveyFields     = 'false',
+  exportDataAccessGroups = 'false',
+  returnFormat           = 'json'
+  # Get only UM site IDs
+  # , filterLogic = "([ts_sub_id] >= 'C2000')"
+)
+
+df_raw <- jsonlite::fromJSON(json_ic) %>% as_tibble() %>% na_if("")
 
 # Define redcap_event_name values to keep
 keeper_RENs <-
   c(
-    "admin_arm_1"
-    , unique(proxy_fields_df$REN)
-  )
+    unique(proxy_fields_df$REN)
+    # , "admin_arm_1"
+  ) %>%
+  str_remove("^w\\d{2}(d\\d)?_(tel|vc)_arm_1$") %>%
+  stringi::stri_remove_empty()
 
 
 # PROCESS DATA ----
 
+cat("Processing data...")
+
 # Get only fields and rows of interest
-df_cln <- df %>%
+df_cln <- df_raw %>%
   select(keeper_fields) %>%
   filter(str_detect(ts_sub_id, "^C\\d{4}$")) %>%
   filter(redcap_event_name %in% keeper_RENs) %>%
@@ -200,8 +184,30 @@ dfs_rens_rdc_aug_nst <-
           nest()
       })
 
+# cmp = complete
+# Add column that identifies which stages are incomplete/pending/complete
+# for each participant
+dfs_rens_rdc_aug_nst_cmp <-
+  map2(.x = dfs_rens_rdc_aug_nst[which(ren_strs != "admin_arm_1")],
+       .y = ren_strs[which(ren_strs != "admin_arm_1")],
+       .f = add_complete_col,
+       proxy_fields_df)
+
+dfs_rens_rdc_aug_nst_stt <-
+  map2(.x = dfs_rens_rdc_aug_nst[which(ren_strs == "admin_arm_1")],
+       .y = ren_strs[which(ren_strs == "admin_arm_1")],
+       .f = add_status_col,
+       proxy_fields_df)
+
+dfs_rens_rdc_aug_nst_cmp <-
+  c(
+    dfs_rens_rdc_aug_nst_cmp
+    , dfs_rens_rdc_aug_nst_stt
+  )
+
+# mfs = missing forms
 # Add columns that help identify which instruments/forms are missing
-# for every participant
+# for each participant
 dfs_rens_rdc_aug_nst_mfs <-
   map2(.x = dfs_rens_rdc_aug_nst,
        .y = ren_strs,
@@ -211,8 +217,19 @@ dfs_rens_rdc_aug_nst_mfs <-
 
 # SAVE DATA AS RDS ----
 
+cat("Saving data as RDS files...")
+
+saveRDS(dfs_rens_rdc_aug_nst_cmp,
+        paste0(wd_path,
+               "/ICONECT_Participant_Tracker/rds/",
+               "dfs_rens_rdc_aug_nst_cmp.Rds"))
+
 saveRDS(dfs_rens_rdc_aug_nst_mfs,
-        "./ICONECT_Participant_Tracker/rds/dfs_rens_rdc_aug_nst_mfs.Rds")
+        paste0(wd_path,
+               "/ICONECT_Participant_Tracker/rds/",
+               "dfs_rens_rdc_aug_nst_mfs.Rds"))
+
+cat("Done.")
 
 
 ###@    #==--  :  --==#    @##==---==##@##==---==##@    #==--  :  --==#    @###
