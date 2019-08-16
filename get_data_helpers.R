@@ -67,7 +67,8 @@ collapse_df_rows_by_ren <- function(ren_str, dfs, ids) {
                    .,
                    proxy_fields_df %>%
                      filter(REN == ren_str) %>%
-                     pull(Field))
+                     pull(Field) %>%
+                     c("redcap_repeat_instance", .))
 
 }
 
@@ -92,7 +93,7 @@ merge_df_rows_by_id_and_cols <- function(id, id_col, df, cols_vct) {
     return(df_iso)
   }
 
-  df_ret <- df_iso %>% slice(1L)
+  df_ret <- df_iso %>% slice(1L) # grab the first row
 
   for (i in 2:nrow(df_iso)) {
     v1 <- df_ret %>% select(!!!cols) %>% slice(1L) %>% as.character()
@@ -122,11 +123,12 @@ isolate_df_rows_by_id <- function(df, id_col, id) {
 #' Helper function for `merge_df_rows_by_id_and_cols`
 #'
 #' Given two vectors like `c(1, NA, NA)` and `c(NA, 2, 3)`, return `c(1, 2, 3)`
+#' Prioritize v2 if there's a conflict
 #'
 zip_vectors <- function(v1, v2) {
-  v <- v1
-  v[is.na(v1)] <- v2[is.na(v1)]
+  v <- v2
   v[is.na(v2)] <- v1[is.na(v2)]
+  v[is.na(v1)] <- v2[is.na(v1)]
   v
 }
 
@@ -142,7 +144,8 @@ add_missing_fields <- function(df, ren, proxy_fields_df) {
 
   cols_to_add <- proxy_fields_df %>%
     filter(REN == ren) %>%
-    pull(Field)
+    pull(Field) %>%
+    c("redcap_repeat_instance", .)
 
   cols_to_add <- cols_to_add[!(cols_to_add %in% cols_to_exclude)]
 
@@ -173,8 +176,8 @@ add_complete_col <- function(df, ren, proxy_fields_df) {
   df %>%
     rowwise() %>%
     mutate(complete = case_when(
-      sum(is.na(data)) == 0 ~ "Yes",
-      sum(!is.na(data)) == 0 ~ "No",
+      sum(is.na(data %>% select(-redcap_repeat_instance))) == 0 ~ "Yes",
+      sum(!is.na(data %>% select(-redcap_repeat_instance))) == 0 ~ "No",
       TRUE ~ "Pending"
     )) %>%
     ungroup()

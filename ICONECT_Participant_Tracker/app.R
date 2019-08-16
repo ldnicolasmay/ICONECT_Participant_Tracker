@@ -17,22 +17,22 @@
 
 # LOAD LIBRARIES ----
 
-suppressMessages(library(shiny))
-suppressMessages(library(shinydashboard))
-
+suppressMessages( library(shiny) )
+suppressMessages( library(shinydashboard) )
 suppressMessages( library(DT) )
+
 suppressMessages( library(dplyr) )
 suppressMessages( library(tidyr) )
-suppressMessages( library(purrr) )
-suppressMessages( library(rlang) )
 suppressMessages( library(stringr) )
 suppressMessages( library(lubridate) )
+suppressMessages( library(purrr) )
+suppressMessages( library(rlang) )
 
 
 # USEFUL GLOBALS ----
 
-DEPLOYED <- FALSE
-# DEPLOYED <- TRUE
+# DEPLOYED <- FALSE
+DEPLOYED <- TRUE
 
 DT_OPTIONS <- list(
   paging = FALSE,
@@ -64,7 +64,57 @@ ui <- dashboardPage(
         text = "Missing Forms",
         tabName = "missing_forms",
         icon = icon("table")
-      )
+      ),
+      menuItem(
+        text = "Study Progress",
+        menuSubItem(
+          text = "Screening",
+          tabName = "screening",
+          icon = icon("table")
+        ),
+        menuSubItem(
+          text = "Baseline",
+          tabName = "baseline",
+          icon = icon("table")
+        ),
+        menuSubItem(
+          text = "Activation",
+          tabName = "activation",
+          icon = icon("table")
+        ),
+        menuSubItem(
+          text = "Complete",
+          tabName = "complete",
+          icon = icon("table")
+        )
+      ) #,
+      # menuItem(
+      #   text = "Screening",
+      #   tabName = "screening",
+      #   icon = icon("table")
+      # ),
+      # menuItem(
+      #   text = "Baseline",
+      #   tabName = "baseline",
+      #   icon = icon("table")
+      # ),
+      # menuItem(
+      #   text = "Activation",
+      #   tabName = "activation",
+      #   icon = icon("table")
+      # ),
+      # menuItem(
+      #   text = "Complete",
+      #   tabName = "complete",
+      #   icon = icon("table")
+      # )
+    ),
+    checkboxGroupInput(
+      inputId = "site_values",
+      label = "Sites",
+      choices = c("OHSU", "UM"),
+      selected = c("OHSU", "UM"),
+      inline = FALSE
     ),
     collapsed = FALSE),
 
@@ -98,7 +148,7 @@ ui <- dashboardPage(
             width = 12
           )
         )
-      ),
+      ), # ... end tabItem for "summary"
       # tabItem for "missing_forms"
       tabItem(
         tabName = "missing_forms",
@@ -133,7 +183,51 @@ ui <- dashboardPage(
             ###
           )
         )
-      )
+      ), # ... end tabItem for "missing_forms"
+      # tabItem for "screening"
+      tabItem(
+        tabName = "screening",
+        h2("Screening"),
+        fluidRow(
+          box(
+            dataTableOutput("screening"),
+            width = 12
+          )
+        )
+      ), # ... end tabItem for "screening"
+      # tabItem for "baseline"
+      tabItem(
+        tabName = "baseline",
+        h2("Baseline"),
+        fluidRow(
+          box(
+            dataTableOutput("baseline"),
+            width = 12
+          )
+        )
+      ), # ... end tabItem for "baseline"
+      # tabItem for "activation"
+      tabItem(
+        tabName = "activation",
+        h2("Activation"),
+        fluidRow(
+          box(
+            dataTableOutput("activation"),
+            width = 12
+          )
+        )
+      ), # ... end tabItem for "activation"
+      # tabItem for "complete"
+      tabItem(
+        tabName = "complete",
+        h2("Complete"),
+        fluidRow(
+          box(
+            dataTableOutput("complete"),
+            width = 12
+          )
+        )
+      ) # ... end tabItem for "screening"
     )
   )
 )
@@ -151,58 +245,105 @@ server <- function(input, output, session) {
   #                    |> 1000 ms / sec
   # invalidation_time <- 1000 * 60 * 5 # 5-minute refresh (debug)
 
-  dfs_rens_rds_aug_nst_cmp <-
+  # Load `dfs_sbl_rens_rdc_aug_nst_cmp.Rds`
+  dfs_sbl_rens_rdc_aug_nst_cmp <-
     reactiveFileReader(
       intervalMillis = invalidation_time,
-      filePath = "rds/dfs_rens_rdc_aug_nst_cmp.Rds",
+      filePath = "rds/dfs_sbl_rens_rdc_aug_nst_cmp.Rds",
       readFunc = readRDS,
       session = NULL
     )
 
-  dfs_rens_rdc_aug_nst_mfs <-
+  # Apply app-wide reactive site checkbox filter
+  dfs_sbl_rens_rdc_aug_nst_cmp_flt <-
+    reactive({
+      map(.x = dfs_sbl_rens_rdc_aug_nst_cmp(),
+          .f = function(df) {
+            df %>%
+              mutate(site = case_when(
+                str_detect(ts_sub_id, "^C1\\d{3}$") ~ "OHSU",
+                str_detect(ts_sub_id, "^C2\\d{3}$") ~ "UM",
+                TRUE ~ NA_character_
+              )) %>%
+              filter(site %in% input$site_values)
+          })
+    })
+
+  # Load `dfs_sbl_rens_rdc_aug_nst_mfs.Rds`
+  dfs_sbl_rens_rdc_aug_nst_mfs <-
     reactiveFileReader(
       intervalMillis = invalidation_time,
-      filePath = "rds/dfs_rens_rdc_aug_nst_mfs.Rds",
+      filePath = "rds/dfs_sbl_rens_rdc_aug_nst_mfs.Rds",
       readFunc = readRDS,
       session = NULL
     )
 
-  ren_strs <- reactive({ names(dfs_rens_rdc_aug_nst_mfs()) })
+  # Apply app-wide reactive site checkbox filter
+  dfs_sbl_rens_rdc_aug_nst_mfs_flt <-
+    reactive({
+      map(.x = dfs_sbl_rens_rdc_aug_nst_mfs(),
+          .f = function(df) {
+            df %>%
+              mutate(site = case_when(
+                str_detect(ts_sub_id, "^C1\\d{3}$") ~ "OHSU",
+                str_detect(ts_sub_id, "^C2\\d{3}$") ~ "UM",
+                TRUE ~ NA_character_
+              )) %>%
+              filter(site %in% input$site_values)
+          })
+    })
+
+  df_cln_act_sel_mut_flt <-
+    reactiveFileReader(
+      intervalMillis = invalidation_time,
+      filePath = "rds/df_cln_act_sel_mut_flt.Rds",
+      readFunc = readRDS,
+      session = NULL
+    )
+
+  df_cln_act_sel_mut_flt_flt <-
+    reactive({
+      df_cln_act_sel_mut_flt() %>%
+        mutate(site = case_when(
+          str_detect(ts_sub_id, "^C1\\d{3}$") ~ "OHSU",
+          str_detect(ts_sub_id, "^C2\\d{3}$") ~ "UM",
+          TRUE ~ NA_character_
+        )) %>%
+        filter(site %in% input$site_values)
+    })
+
+  ren_strs <- reactive({ names(dfs_sbl_rens_rdc_aug_nst_mfs_flt()) })
+
+  # Statuses tab ----
 
   output$statuses <-
     renderDataTable({
       datatable(
-        imap_dfc(.x = dfs_rens_rds_aug_nst_cmp(),
+        imap_dfc(.x = dfs_sbl_rens_rdc_aug_nst_cmp_flt(),
                  ~ {
                    if (.y == "scrn_tel_arm_1") {
                      .x %>%
                        select(ts_sub_id,
-                              !!sym(paste0(.y, "\ncomplete")) := complete)
+                              !!sym(paste0(.y, "_complete")) := complete)
                    } else {
                      .x %>%
-                       select(!!sym(paste0(.y, "\ncomplete")) := complete)
+                       select(!!sym(paste0(.y, "_complete")) := complete)
                    }
                  }) %>%
-          filter(str_detect(ts_sub_id, "^C2\\d{3}$")) %>%
-          mutate(Treatment = case_when(
-            `admin_arm_1\ncomplete` == "Active" ~ "Yes",
-            TRUE ~ "No"
-          )) %>%
           select(
-            `ID` = `ts_sub_id`,
-            `Status` = `admin_arm_1\ncomplete`,
-            `Tel Screen` = `scrn_tel_arm_1\ncomplete`,
-            `Screen Visit` = `scrn_v_arm_1\ncomplete`,
-            `BL Visit` = `bl_v_arm_1\ncomplete`,
-            `BL MRI` = `bl_mri_arm_1\ncomplete`,
-            `BL CDx` = `bl_cdx_arm_1\ncomplete`,
-            `Treatment`,
-            `M 06 Visit` = `06_v_arm_1\ncomplete`,
-            `M 06 MRI` = `06_mri_arm_1\ncomplete`,
-            `M 06 CDx` = `06_cdx_arm_1\ncomplete`,
-            `M 12 Visit` = `12_v_arm_1\ncomplete`,
-            `M 12 CDx` = `12_cdx_arm_1\ncomplete`,
-            `Tel Follow Up` = `fup_tel_arm_1\ncomplete`
+            `ID`            = `ts_sub_id`,
+            `Status`        = `admin_arm_1_complete`,
+            `Tel Screen`    = `scrn_tel_arm_1_complete`,
+            `Screen Visit`  = `scrn_v_arm_1_complete`,
+            `BL Visit`      = `bl_v_arm_1_complete`,
+            `BL MRI`        = `bl_mri_arm_1_complete`,
+            `BL CDx`        = `bl_cdx_arm_1_complete`,
+            `M 06 Visit`    = `06_v_arm_1_complete`,
+            `M 06 MRI`      = `06_mri_arm_1_complete`,
+            `M 06 CDx`      = `06_cdx_arm_1_complete`,
+            `M 12 Visit`    = `12_v_arm_1_complete`,
+            `M 12 CDx`      = `12_cdx_arm_1_complete`,
+            `Tel Follow Up` = `fup_tel_arm_1_complete`
           ) %>%
           filter(`Status` %in% input$status_values),
         options = DT_OPTIONS,
@@ -226,16 +367,13 @@ server <- function(input, output, session) {
                       styleEqual(c("No", "Pending", "Yes"),
                                  c("#ff8080", "#ffcc99", "lightgreen"))) %>%
         formatStyle(.,
-                    c("Treatment"),
-                    backgroundColor =
-                      styleEqual(c("Yes"),
-                                 c("#99bbff"))) %>%
-        formatStyle(.,
                     c("Status"),
                     backgroundColor =
                       styleEqual(c("Active"),
                                  c("#99bbff")))
     })
+
+  # Missing Forms tab ----
 
   observe({
     map(.x = ren_strs(),
@@ -243,11 +381,9 @@ server <- function(input, output, session) {
           output[[paste0("mfs_", ren_str)]] <- # eg, "mfs_scrn_tel_arm_1"
             renderDataTable({
               datatable(
-                dfs_rens_rdc_aug_nst_mfs()[[ren_str]] %>%
+                dfs_sbl_rens_rdc_aug_nst_mfs_flt()[[ren_str]] %>%
                   select(`Participant ID` = ts_sub_id,
-                         `Missing Forms` = missing_forms) %>%
-                  # Only keep UM IDs for now
-                  filter(str_detect(`Participant ID`, "^C2\\d{3}$")),
+                         `Missing Forms`  = missing_forms),
                 options = DT_OPTIONS,
                 escape = FALSE)
             })
@@ -258,9 +394,189 @@ server <- function(input, output, session) {
   # # Example of single data table renders w/o observe-lapply
   # output$scrn_tel_arm_1 <-
   #   renderDataTable({
-  #     datatable(dfs_rens_rdc_aug_nst_mfs()[["scrn_tel_arm_1"]]
+  #     datatable(dfs_sbl_rens_rdc_aug_nst_mfs_flt()[["scrn_tel_arm_1"]]
   #               , options = DT_OPTIONS)
   #   })
+
+  # Screening Tab ----
+
+  df_screening_bl_cdx_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["bl_cdx_arm_1"]] %>%
+        filter(complete != "Yes") %>%
+        unnest(data) %>%
+        select(ts_sub_id, d1_dat, elg_dat, elg_yn) %>%
+        mutate(elg_yn = case_when(
+          elg_yn == 0 ~ "No",
+          elg_yn == 1 ~ "Yes",
+          TRUE ~ NA_character_
+        ))
+    })
+
+  df_screening_scrn_v_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["scrn_v_arm_1"]] %>%
+        unnest(data) %>%
+        select(ts_sub_id, mrp_dat, mrp_saf, mrp_yn) %>%
+        mutate(mrp_saf = case_when(
+          mrp_saf == 0 ~ "No",
+          mrp_saf == 1 ~ "Yes",
+          TRUE ~ NA_character_
+        )) %>%
+        mutate(mrp_yn = case_when(
+          mrp_yn == 0 ~ "No",
+          mrp_yn == 1 ~ "Yes",
+          TRUE ~ NA_character_
+        ))
+    })
+
+  df_screening_admin_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["admin_arm_1"]] %>%
+        unnest(data) %>%
+        select(ts_sub_id, ran_dat)
+    })
+
+  df_screening <-
+    reactive({
+      left_join(df_screening_bl_cdx_arm_1(),
+                df_screening_scrn_v_arm_1(),
+                by = "ts_sub_id") %>%
+        left_join(.,
+                  df_screening_admin_arm_1(),
+                  by = "ts_sub_id") %>%
+        filter(is.na(ran_dat)) %>%
+        select(`Participant ID`            = ts_sub_id,
+               `CDx Date`                  = d1_dat,
+               `Study Elig. Determ. Date`  = elg_dat,
+               `Study Eligible`            = elg_yn,
+               `MRI Safety Assmnt. Date`   = mrp_dat,
+               `MRI Safety Assmnt. Admin.` = mrp_saf,
+               `MRI Eligible`              = mrp_yn)
+    })
+
+  output$screening <-
+    renderDataTable(
+      datatable(
+        df_screening(),
+        options = DT_OPTIONS,
+        escape = FALSE
+      )
+    )
+
+  # Baseline tab ----
+
+  df_baseline_scrn_v_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["scrn_v_arm_1"]] %>%
+        unnest(data) %>%
+        select(ts_sub_id, con_dtc) %>%
+        mutate(days_since_con_dtc =
+                 as.integer(today() - as_date(con_dtc)))
+    })
+
+  df_baseline_admin_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["admin_arm_1"]] %>%
+        unnest(data) %>%
+        select(ts_sub_id, ran_dat) %>%
+        mutate(days_since_ran_dat =
+                 as.integer(today() - as_date(ran_dat)))
+    })
+
+  df_baseline_bl_v_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["bl_v_arm_1"]] %>%
+        unnest(data) %>%
+        select(ts_sub_id, stb_dat, redcap_repeat_instance) %>%
+        mutate(redcap_repeat_instance = as.integer(redcap_repeat_instance))
+    })
+
+  df_baseline_bl_mri_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["bl_mri_arm_1"]] %>%
+        unnest(data) %>%
+        select(ts_sub_id, mcf_dat)
+    })
+
+  df_baseline <-
+    reactive({
+      left_join(df_baseline_scrn_v_arm_1(),
+                df_baseline_admin_arm_1(),
+                by = "ts_sub_id") %>%
+        filter(!is.na(ran_dat)) %>% # filter out anyone w/o randomization date
+        left_join(.,
+                  df_baseline_bl_v_arm_1(),
+                  by = "ts_sub_id") %>%
+        left_join(.,
+                  select(df_screening_scrn_v_arm_1(), ts_sub_id, mrp_yn),
+                  by = "ts_sub_id") %>%
+        left_join(.,
+                  df_baseline_bl_mri_arm_1(),
+                  by = "ts_sub_id") %>%
+        rename(`Participant ID`             = ts_sub_id,
+               `Consent Date`               = con_dtc,
+               `Days Since Consent`         = days_since_con_dtc,
+               `Randomiz. Date`             = ran_dat,
+               `Days since Randomiz.`       = days_since_ran_dat,
+               `Last Baseline Visit Date`   = stb_dat,
+               `Last Baseline Visit Number` = redcap_repeat_instance,
+               `MRI Eligible`               = mrp_yn,
+               `MRI Date`                   = mcf_dat)
+    })
+
+  output$baseline <-
+    renderDataTable(
+      datatable(
+        df_baseline(),
+        options = DT_OPTIONS,
+        escape = FALSE
+      )
+    )
+
+  # Activation tab ----
+
+  df_activation <-
+    reactive({
+      left_join(df_cln_act_sel_mut_flt_flt(),
+                select(df_screening_scrn_v_arm_1(), ts_sub_id, mrp_yn),
+                by = "ts_sub_id") %>%
+        select(`Participant ID`        = ts_sub_id,
+               `Study Week`            = week_max,
+               `MRI Eligible`          = mrp_yn,
+               `Approx 6 Month Visit`  = approx_06_mo,
+               `Approx 12 Month Visit` = approx_12_mo)
+    })
+
+  output$activation <-
+    renderDataTable(
+      datatable(
+        df_activation(),
+        options = DT_OPTIONS,
+        escape = FALSE
+      )
+    )
+
+  # Complete tab ----
+
+  df_complete <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["fup_tel_arm_1"]] %>%
+        unnest(data) %>%
+        filter(complete == "Yes") %>%
+        select(`Participant ID`  = ts_sub_id,
+               `Complete`        = complete,
+               `Completion Date` = lsn_dat)
+    })
+
+  output$complete <-
+    renderDataTable(
+      datatable(
+        df_complete(),
+        options = DT_OPTIONS,
+        escape = FALSE
+      )
+    )
 
 }
 
