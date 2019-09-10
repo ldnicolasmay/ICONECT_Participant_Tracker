@@ -20,12 +20,15 @@
 
 # LOAD USEFUL LIBRARIES ----
 
+suppressMessages( library(crayon) )
+
+cat(green("Loading packages and useful functions and globals...\n"))
+
 suppressMessages( library(dplyr) )
 suppressMessages( library(tidyr) )
 suppressMessages( library(readr) )
 suppressMessages( library(rlang) )
 suppressMessages( library(purrr) )
-suppressMessages( library(crayon) )
 suppressMessages( library(stringr) )
 suppressMessages( library(lubridate) )
 
@@ -50,6 +53,13 @@ source(paste0(box_path, "Documents/R_helpers/config.R"))
 
 
 # GET RAW DATA (VIA API) ----
+
+cat(
+  paste0(green("Retrieving control data from "),
+         white(bold("proxy_fields.xlsx")),
+         green(" ...\n")
+  )
+)
 
 # Read proxy fields data from hand-built XLSX
 proxy_fields_df <-

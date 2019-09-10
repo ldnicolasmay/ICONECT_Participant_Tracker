@@ -245,6 +245,17 @@ server <- function(input, output, session) {
   #                    |> 1000 ms / sec
   # invalidation_time <- 1000 * 60 * 5 # 5-minute refresh (debug)
 
+  # dfs  -> dataframes
+  # sbl  -> screening + baseline (excludes weekly phone calls & daily video chats)
+  # rens -> redcap event names
+  # rdc  -> reduced
+  # aug  -> augmented
+  # nst  -> nested
+  # cmp  -> complete (empty columns added for consistency)
+  # flt  -> filtered
+  # mfs  -> missing forms
+  # act  -> activation (includes only weekly phone calls & daily video chats)
+
   # Load `dfs_sbl_rens_rdc_aug_nst_cmp.Rds`
   dfs_sbl_rens_rdc_aug_nst_cmp <-
     reactiveFileReader(
@@ -417,7 +428,9 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["scrn_v_arm_1"]] %>%
         unnest(data) %>%
-        select(ts_sub_id, mrp_dat, mrp_saf, mrp_yn) %>%
+        select(ts_sub_id, con_dtc, mrp_dat, mrp_saf, mrp_yn) %>%
+        mutate(days_since_con_dtc =
+                 as.integer(today() - as_date(con_dtc))) %>%
         mutate(mrp_saf = case_when(
           mrp_saf == 0 ~ "No",
           mrp_saf == 1 ~ "Yes",
@@ -446,13 +459,17 @@ server <- function(input, output, session) {
                   df_screening_admin_arm_1(),
                   by = "ts_sub_id") %>%
         filter(is.na(ran_dat)) %>%
-        select(`Participant ID`            = ts_sub_id,
-               `CDx Date`                  = d1_dat,
-               `Study Elig. Determ. Date`  = elg_dat,
-               `Study Eligible`            = elg_yn,
-               `MRI Safety Assmnt. Date`   = mrp_dat,
-               `MRI Safety Assmnt. Admin.` = mrp_saf,
-               `MRI Eligible`              = mrp_yn)
+        filter(is.na(elg_yn) | elg_yn == "Yes") %>%
+        filter(!is.na(con_dtc)) %>%
+        select(`Participant ID`           = ts_sub_id,
+               `Consent Date`             = con_dtc,
+               `Days Since Consent`       = days_since_con_dtc,
+               `CDx Date`                 = d1_dat,
+               `Study Elig. Determ. Date` = elg_dat,
+               `Study Eligible`           = elg_yn,
+               `MRI Safety Date`          = mrp_dat,
+               `MRI Safety Admin.`        = mrp_saf,
+               `MRI Eligible`             = mrp_yn)
     })
 
   output$screening <-
@@ -499,11 +516,19 @@ server <- function(input, output, session) {
         select(ts_sub_id, mcf_dat)
     })
 
+  ids_act <-
+    reactive({
+      df_cln_act_sel_mut_flt() %>%
+        distinct(ts_sub_id) %>%
+        pull
+    })
+
   df_baseline <-
     reactive({
       left_join(df_baseline_scrn_v_arm_1(),
                 df_baseline_admin_arm_1(),
                 by = "ts_sub_id") %>%
+        filter(!(ts_sub_id %in% ids_act())) %>% # filter out anyone that's in activation stage
         filter(!is.na(ran_dat)) %>% # filter out anyone w/o randomization date
         left_join(.,
                   df_baseline_bl_v_arm_1(),
@@ -536,17 +561,37 @@ server <- function(input, output, session) {
 
   # Activation tab ----
 
+  df_activation_base <- reactive({ df_cln_act_sel_mut_flt_flt() })
+
+  df_activation_scrn_v_arm_1 <-
+    reactive({
+      df_screening_scrn_v_arm_1() %>%
+        select(ts_sub_id, mrp_yn)
+    })
+
+  ids_cmp <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["fup_tel_arm_1"]] %>%
+        unnest(data) %>%
+        filter(complete == "Yes") %>%
+        distinct(ts_sub_id) %>%
+        pull()
+    })
+
   df_activation <-
     reactive({
-      left_join(df_cln_act_sel_mut_flt_flt(),
-                select(df_screening_scrn_v_arm_1(), ts_sub_id, mrp_yn),
+      left_join(df_activation_base(),
+                df_activation_scrn_v_arm_1(),
                 by = "ts_sub_id") %>%
+        filter(!(ts_sub_id %in% ids_cmp())) %>%
         select(`Participant ID`        = ts_sub_id,
                `Study Week`            = week_max,
                `MRI Eligible`          = mrp_yn,
+               `Week 1 Day 1`          = wkq_dat_monday_min,
                `Approx 6 Month Visit`  = approx_06_mo,
                `Approx 12 Month Visit` = approx_12_mo)
     })
+
 
   output$activation <-
     renderDataTable(
