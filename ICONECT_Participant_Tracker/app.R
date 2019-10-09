@@ -17,16 +17,16 @@
 
 # LOAD LIBRARIES ----
 
-suppressMessages( library(shiny) )
+suppressMessages( library(shiny)          )
 suppressMessages( library(shinydashboard) )
-suppressMessages( library(DT) )
+suppressMessages( library(DT)             )
 
-suppressMessages( library(dplyr) )
-suppressMessages( library(tidyr) )
-suppressMessages( library(stringr) )
+suppressMessages( library(dplyr)     )
+suppressMessages( library(tidyr)     )
+suppressMessages( library(purrr)     )
+suppressMessages( library(rlang)     )
+suppressMessages( library(stringr)   )
 suppressMessages( library(lubridate) )
-suppressMessages( library(purrr) )
-suppressMessages( library(rlang) )
 
 
 # USEFUL GLOBALS ----
@@ -87,27 +87,7 @@ ui <- dashboardPage(
           tabName = "complete",
           icon = icon("table")
         )
-      ) #,
-      # menuItem(
-      #   text = "Screening",
-      #   tabName = "screening",
-      #   icon = icon("table")
-      # ),
-      # menuItem(
-      #   text = "Baseline",
-      #   tabName = "baseline",
-      #   icon = icon("table")
-      # ),
-      # menuItem(
-      #   text = "Activation",
-      #   tabName = "activation",
-      #   icon = icon("table")
-      # ),
-      # menuItem(
-      #   text = "Complete",
-      #   tabName = "complete",
-      #   icon = icon("table")
-      # )
+      )
     ),
     checkboxGroupInput(
       inputId = "site_values",
@@ -246,7 +226,7 @@ server <- function(input, output, session) {
   # invalidation_time <- 1000 * 60 * 5 # 5-minute refresh (debug)
 
   # dfs  -> dataframes
-  # sbl  -> screening + baseline (excludes weekly phone calls & daily video chats)
+  # sbl  -> screening + baseline (excl. weekly phone calls & daily video chats)
   # rens -> redcap event names
   # rdc  -> reduced
   # aug  -> augmented
@@ -254,7 +234,7 @@ server <- function(input, output, session) {
   # cmp  -> complete (empty columns added for consistency)
   # flt  -> filtered
   # mfs  -> missing forms
-  # act  -> activation (includes only weekly phone calls & daily video chats)
+  # act  -> activation (incl. only weekly phone calls & daily video chats)
 
   # Load `dfs_sbl_rens_rdc_aug_nst_cmp.Rds`
   dfs_sbl_rens_rdc_aug_nst_cmp <-
@@ -342,19 +322,19 @@ server <- function(input, output, session) {
                    }
                  }) %>%
           select(
-            `ID`            = `ts_sub_id`,
-            `Status`        = `admin_arm_1_complete`,
-            `Tel Screen`    = `scrn_tel_arm_1_complete`,
-            `Screen Visit`  = `scrn_v_arm_1_complete`,
-            `BL Visit`      = `bl_v_arm_1_complete`,
-            `BL MRI`        = `bl_mri_arm_1_complete`,
-            `BL CDx`        = `bl_cdx_arm_1_complete`,
-            `M 06 Visit`    = `06_v_arm_1_complete`,
-            `M 06 MRI`      = `06_mri_arm_1_complete`,
-            `M 06 CDx`      = `06_cdx_arm_1_complete`,
-            `M 12 Visit`    = `12_v_arm_1_complete`,
-            `M 12 CDx`      = `12_cdx_arm_1_complete`,
-            `Tel Follow Up` = `fup_tel_arm_1_complete`
+            `ID`              = `ts_sub_id`
+            , `Status`        = `admin_arm_1_complete`
+            , `Tel Screen`    = `scrn_tel_arm_1_complete`
+            , `Screen Visit`  = `scrn_v_arm_1_complete`
+            , `BL Visit`      = `bl_v_arm_1_complete`
+            , `BL MRI`        = `bl_mri_arm_1_complete`
+            , `BL CDx`        = `bl_cdx_arm_1_complete`
+            , `M 06 Visit`    = `06_v_arm_1_complete`
+            , `M 06 MRI`      = `06_mri_arm_1_complete`
+            , `M 06 CDx`      = `06_cdx_arm_1_complete`
+            , `M 12 Visit`    = `12_v_arm_1_complete`
+            , `M 12 CDx`      = `12_cdx_arm_1_complete`
+            , `Tel Follow Up` = `fup_tel_arm_1_complete`
           ) %>%
           filter(`Status` %in% input$status_values),
         options = DT_OPTIONS,
@@ -362,17 +342,17 @@ server <- function(input, output, session) {
       ) %>%
         formatStyle(.,
                     c(
-                      "Tel Screen",
-                      "Screen Visit",
-                      "BL CDx",
-                      "BL MRI",
-                      "BL Visit",
-                      "M 06 CDx",
-                      "M 06 MRI",
-                      "M 06 Visit",
-                      "M 12 CDx",
-                      "M 12 Visit",
-                      "Tel Follow Up"
+                      "Tel Screen"
+                      , "Screen Visit"
+                      , "BL CDx"
+                      , "BL MRI"
+                      , "BL Visit"
+                      , "M 06 CDx"
+                      , "M 06 MRI"
+                      , "M 06 Visit"
+                      , "M 12 CDx"
+                      , "M 12 Visit"
+                      , "Tel Follow Up"
                     ),
                     backgroundColor =
                       styleEqual(c("No", "Pending", "Yes"),
@@ -429,6 +409,7 @@ server <- function(input, output, session) {
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["scrn_v_arm_1"]] %>%
         unnest(data) %>%
         select(ts_sub_id, con_dtc, mrp_dat, mrp_saf, mrp_yn) %>%
+        # select(ts_sub_id, con_dtc, mrp_dat, mrp_saf) %>%
         mutate(days_since_con_dtc =
                  as.integer(today() - as_date(con_dtc))) %>%
         mutate(mrp_saf = case_when(
@@ -447,7 +428,7 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["admin_arm_1"]] %>%
         unnest(data) %>%
-        select(ts_sub_id, ran_dat)
+        select(ts_sub_id, ps_stt, ran_dat)
     })
 
   df_screening <-
@@ -458,18 +439,21 @@ server <- function(input, output, session) {
         left_join(.,
                   df_screening_admin_arm_1(),
                   by = "ts_sub_id") %>%
-        filter(is.na(ran_dat)) %>%
         filter(is.na(elg_yn) | elg_yn == "Yes") %>%
         filter(!is.na(con_dtc)) %>%
-        select(`Participant ID`           = ts_sub_id,
-               `Consent Date`             = con_dtc,
-               `Days Since Consent`       = days_since_con_dtc,
-               `CDx Date`                 = d1_dat,
-               `Study Elig. Determ. Date` = elg_dat,
-               `Study Eligible`           = elg_yn,
-               `MRI Safety Date`          = mrp_dat,
-               `MRI Safety Admin.`        = mrp_saf,
-               `MRI Eligible`             = mrp_yn)
+        filter(is.na(ran_dat)) %>%
+        filter(ps_stt != 2) %>%
+        select(
+          `Participant ID`             = ts_sub_id
+          , `Consent Date`             = con_dtc
+          , `Days Since Consent`       = days_since_con_dtc
+          , `CDx Date`                 = d1_dat
+          , `Study Elig. Determ. Date` = elg_dat
+          , `Study Eligible`           = elg_yn
+          , `MRI Safety Date`          = mrp_dat
+          , `MRI Safety Admin.`        = mrp_saf
+          # , `MRI Eligible`             = mrp_yn
+        )
     })
 
   output$screening <-
@@ -496,7 +480,7 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["admin_arm_1"]] %>%
         unnest(data) %>%
-        select(ts_sub_id, ran_dat) %>%
+        select(ts_sub_id, ran_dat, ps_stt) %>%
         mutate(days_since_ran_dat =
                  as.integer(today() - as_date(ran_dat)))
     })
@@ -528,8 +512,9 @@ server <- function(input, output, session) {
       left_join(df_baseline_scrn_v_arm_1(),
                 df_baseline_admin_arm_1(),
                 by = "ts_sub_id") %>%
-        filter(!(ts_sub_id %in% ids_act())) %>% # filter out anyone that's in activation stage
+        filter(!(ts_sub_id %in% ids_act())) %>% # filter out pts in activation
         filter(!is.na(ran_dat)) %>% # filter out anyone w/o randomization date
+        filter(ps_stt != 6) %>% # filter out anyone who's discontinued
         left_join(.,
                   df_baseline_bl_v_arm_1(),
                   by = "ts_sub_id") %>%
@@ -539,15 +524,17 @@ server <- function(input, output, session) {
         left_join(.,
                   df_baseline_bl_mri_arm_1(),
                   by = "ts_sub_id") %>%
-        rename(`Participant ID`             = ts_sub_id,
-               `Consent Date`               = con_dtc,
-               `Days Since Consent`         = days_since_con_dtc,
-               `Randomiz. Date`             = ran_dat,
-               `Days since Randomiz.`       = days_since_ran_dat,
-               `Last Baseline Visit Date`   = stb_dat,
-               `Last Baseline Visit Number` = redcap_repeat_instance,
-               `MRI Eligible`               = mrp_yn,
-               `MRI Date`                   = mcf_dat)
+        select(
+          `Participant ID`               = ts_sub_id
+          , `Consent Date`               = con_dtc
+          , `Days Since Consent`         = days_since_con_dtc
+          , `Randomiz. Date`             = ran_dat
+          , `Days since Randomiz.`       = days_since_ran_dat
+          , `Last Baseline Visit Date`   = stb_dat
+          , `Last Baseline Visit Number` = redcap_repeat_instance
+          , `MRI Eligible`               = mrp_yn
+          , `MRI Date`                   = mcf_dat
+        )
     })
 
   output$baseline <-
@@ -584,12 +571,14 @@ server <- function(input, output, session) {
                 df_activation_scrn_v_arm_1(),
                 by = "ts_sub_id") %>%
         filter(!(ts_sub_id %in% ids_cmp())) %>%
-        select(`Participant ID`        = ts_sub_id,
-               `Study Week`            = week_max,
-               `MRI Eligible`          = mrp_yn,
-               `Week 1 Day 1`          = wkq_dat_monday_min,
-               `Approx 6 Month Visit`  = approx_06_mo,
-               `Approx 12 Month Visit` = approx_12_mo)
+        select(
+          `Participant ID`          = ts_sub_id
+          , `Study Week`            = week_max
+          , `MRI Eligible`          = mrp_yn
+          , `Week 1 Day 1`          = wkq_dat_monday_min
+          , `Approx 6 Month Visit`  = approx_06_mo
+          , `Approx 12 Month Visit` = approx_12_mo
+        )
     })
 
 
@@ -609,9 +598,11 @@ server <- function(input, output, session) {
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["fup_tel_arm_1"]] %>%
         unnest(data) %>%
         filter(complete == "Yes") %>%
-        select(`Participant ID`  = ts_sub_id,
-               `Complete`        = complete,
-               `Completion Date` = lsn_dat)
+        select(
+          `Participant ID`    = ts_sub_id
+          , `Complete`        = complete
+          , `Completion Date` = lsn_dat
+        )
     })
 
   output$complete <-

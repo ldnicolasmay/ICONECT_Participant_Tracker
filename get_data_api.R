@@ -39,9 +39,9 @@ DOCKER_DEV <- TRUE    # when developing using docker container
 # DOCKER_DEV <- FALSE   # when developing using local machine (not advised)
 
 if (DOCKER_DEV) {
-  box_path <- "/Box Sync/"
+  box_path <- "/Box/"
 } else {
-  box_path <- "~/Box Sync/"
+  box_path <- "~/Box/"
 }
 
 wd_path <- paste0(box_path,
@@ -198,8 +198,8 @@ df_cln_act_sel_mut_flt <-
   select(ts_sub_id,
          week_max,                # study week
          wkq_dat_monday_min) %>%  # effective w1d1 date
-  mutate(approx_06_mo = as.Date(wkq_dat_monday_min) + dweeks(25),
-         approx_12_mo = as.Date(wkq_dat_monday_min) + dweeks(49))
+  mutate(approx_06_mo = as.Date(wkq_dat_monday_min) + dweeks(25L),
+         approx_12_mo = as.Date(wkq_dat_monday_min) + dweeks(49L))
 
 # Get unique IDs
 ids <-
