@@ -96,6 +96,11 @@ ui <- dashboardPage(
       selected = c("OHSU", "UM"),
       inline = FALSE
     ),
+    fluidRow(box(
+      textOutput(outputId = "data_update"),
+      width = 12,
+      background = "black"
+    )),
     collapsed = FALSE),
 
   # Body ----
@@ -305,6 +310,13 @@ server <- function(input, output, session) {
 
   ren_strs <- reactive({ names(dfs_sbl_rens_rdc_aug_nst_mfs_flt()) })
 
+  # Get timestamp for when data last updated
+  timestamp <- reactive({
+    as.character(as_date(file.info("./rds/df_cln_act_sel_mut_flt.Rds")$mtime))
+  })
+
+  output$data_update <- renderText({ paste0("Data as of: ", timestamp()) })
+
   # Statuses tab ----
 
   output$statuses <-
@@ -385,7 +397,7 @@ server <- function(input, output, session) {
   # # Example of single data table renders w/o observe-lapply
   # output$scrn_tel_arm_1 <-
   #   renderDataTable({
-  #     datatable(dfs_sbl_rens_rdc_aug_nst_mfs_flt()[["scrn_tel_arm_1"]]
+  #     datatable(dfs_sbl_rens_rdc_aug_nst_mfs_flt()$scrn_tel_arm_1
   #               , options = DT_OPTIONS)
   #   })
 
@@ -393,7 +405,7 @@ server <- function(input, output, session) {
 
   df_screening_bl_cdx_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["bl_cdx_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$bl_cdx_arm_1 %>%
         filter(complete != "Yes") %>%
         unnest(data) %>%
         select(ts_sub_id, d1_dat, elg_dat, elg_yn) %>%
@@ -404,14 +416,22 @@ server <- function(input, output, session) {
         ))
     })
 
+  df_screening_scrn_tel_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_tel_arm_1 %>%
+        unnest(data) %>%
+        select(ts_sub_id, ts_ins)
+    })
+
   df_screening_scrn_v_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["scrn_v_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_v_arm_1 %>%
         unnest(data) %>%
         select(ts_sub_id, con_dtc, mrp_dat, mrp_saf, mrp_yn) %>%
-        # select(ts_sub_id, con_dtc, mrp_dat, mrp_saf) %>%
-        mutate(days_since_con_dtc =
-                 as.integer(today() - as_date(con_dtc))) %>%
+        # mutate(days_since_con_dtc =
+        #          as.integer(today() - as_date(con_dtc))) %>%
+        mutate(weeks_since_con_dtc =
+                 (as.integer(today() - as_date(con_dtc))) %/% 7) %>%
         mutate(mrp_saf = case_when(
           mrp_saf == 0 ~ "No",
           mrp_saf == 1 ~ "Yes",
@@ -426,7 +446,7 @@ server <- function(input, output, session) {
 
   df_screening_admin_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["admin_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$admin_arm_1 %>%
         unnest(data) %>%
         select(ts_sub_id, ps_stt, ran_dat)
     })
@@ -434,8 +454,11 @@ server <- function(input, output, session) {
   df_screening <-
     reactive({
       left_join(df_screening_bl_cdx_arm_1(),
-                df_screening_scrn_v_arm_1(),
+                df_screening_scrn_tel_arm_1(),
                 by = "ts_sub_id") %>%
+        left_join(.,
+                  df_screening_scrn_v_arm_1(),
+                  by = "ts_sub_id") %>%
         left_join(.,
                   df_screening_admin_arm_1(),
                   by = "ts_sub_id") %>%
@@ -445,8 +468,10 @@ server <- function(input, output, session) {
         filter(ps_stt != 2) %>%
         select(
           `Participant ID`             = ts_sub_id
+          , `Assessor`                 = ts_ins
           , `Consent Date`             = con_dtc
-          , `Days Since Consent`       = days_since_con_dtc
+          # , `Days Since Consent`       = days_since_con_dtc
+          , `Weeks Since Consent`      = weeks_since_con_dtc
           , `CDx Date`                 = d1_dat
           , `Study Elig. Determ. Date` = elg_dat
           , `Study Eligible`           = elg_yn
@@ -469,25 +494,36 @@ server <- function(input, output, session) {
 
   df_baseline_scrn_v_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["scrn_v_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_v_arm_1 %>%
         unnest(data) %>%
         select(ts_sub_id, con_dtc) %>%
-        mutate(days_since_con_dtc =
-                 as.integer(today() - as_date(con_dtc)))
+        # mutate(days_since_con_dtc =
+        #          as.integer(today() - as_date(con_dtc)))
+        mutate(weeks_since_con_dtc =
+                 (as.integer(today() - as_date(con_dtc))) %/% 7)
+    })
+
+  df_baseline_scrn_tel_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_tel_arm_1 %>%
+        unnest(data) %>%
+        select(ts_sub_id, ts_ins)
     })
 
   df_baseline_admin_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["admin_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$admin_arm_1 %>%
         unnest(data) %>%
         select(ts_sub_id, ran_dat, ps_stt) %>%
-        mutate(days_since_ran_dat =
-                 as.integer(today() - as_date(ran_dat)))
+        # mutate(days_since_ran_dat =
+        #          as.integer(today() - as_date(ran_dat)))
+        mutate(weeks_since_ran_dat =
+                 (as.integer(today() - as_date(ran_dat))) %/% 7)
     })
 
   df_baseline_bl_v_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["bl_v_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$bl_v_arm_1 %>%
         unnest(data) %>%
         select(ts_sub_id, stb_dat, redcap_repeat_instance) %>%
         mutate(redcap_repeat_instance = as.integer(redcap_repeat_instance))
@@ -495,7 +531,7 @@ server <- function(input, output, session) {
 
   df_baseline_bl_mri_arm_1 <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["bl_mri_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$bl_mri_arm_1 %>%
         unnest(data) %>%
         select(ts_sub_id, mcf_dat)
     })
@@ -510,11 +546,14 @@ server <- function(input, output, session) {
   df_baseline <-
     reactive({
       left_join(df_baseline_scrn_v_arm_1(),
-                df_baseline_admin_arm_1(),
+                df_baseline_scrn_tel_arm_1(),
                 by = "ts_sub_id") %>%
-        filter(!(ts_sub_id %in% ids_act())) %>% # filter out pts in activation
-        filter(!is.na(ran_dat)) %>% # filter out anyone w/o randomization date
-        filter(ps_stt != 6) %>% # filter out anyone who's discontinued
+        left_join(.,
+                  df_baseline_admin_arm_1(),
+                  by = "ts_sub_id") %>%
+        filter(!(ts_sub_id %in% ids_act())) %>%  # filter out pts in activation
+        filter(!is.na(ran_dat)) %>%  # filter out anyone w/o randomization date
+        filter(ps_stt != 6) %>%  # filter out anyone who's discontinued
         left_join(.,
                   df_baseline_bl_v_arm_1(),
                   by = "ts_sub_id") %>%
@@ -526,10 +565,13 @@ server <- function(input, output, session) {
                   by = "ts_sub_id") %>%
         select(
           `Participant ID`               = ts_sub_id
+          , `Assessor`                   = ts_ins
           , `Consent Date`               = con_dtc
-          , `Days Since Consent`         = days_since_con_dtc
+          # , `Days Since Consent`         = days_since_con_dtc
+          , `Weeks Since Consent`        = weeks_since_con_dtc
           , `Randomiz. Date`             = ran_dat
-          , `Days since Randomiz.`       = days_since_ran_dat
+          # , `Days Since Randomiz.`       = days_since_ran_dat
+          , `Weeks Since Randomiz.`      = weeks_since_ran_dat
           , `Last Baseline Visit Date`   = stb_dat
           , `Last Baseline Visit Number` = redcap_repeat_instance
           , `MRI Eligible`               = mrp_yn
@@ -550,6 +592,13 @@ server <- function(input, output, session) {
 
   df_activation_base <- reactive({ df_cln_act_sel_mut_flt_flt() })
 
+  df_activation_scrn_tel_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_tel_arm_1 %>%
+        unnest(data) %>%
+        select(ts_sub_id, ts_ins)
+    })
+
   df_activation_scrn_v_arm_1 <-
     reactive({
       df_screening_scrn_v_arm_1() %>%
@@ -558,7 +607,7 @@ server <- function(input, output, session) {
 
   ids_cmp <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["fup_tel_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$fup_tel_arm_1 %>%
         unnest(data) %>%
         filter(complete == "Yes") %>%
         distinct(ts_sub_id) %>%
@@ -568,16 +617,21 @@ server <- function(input, output, session) {
   df_activation <-
     reactive({
       left_join(df_activation_base(),
-                df_activation_scrn_v_arm_1(),
+                df_activation_scrn_tel_arm_1(),
                 by = "ts_sub_id") %>%
+        left_join(.,
+                  df_activation_scrn_v_arm_1(),
+                  by = "ts_sub_id") %>%
         filter(!(ts_sub_id %in% ids_cmp())) %>%
         select(
           `Participant ID`          = ts_sub_id
+          , `Assessor`              = ts_ins
           , `Study Week`            = week_max
           , `MRI Eligible`          = mrp_yn
           , `Week 1 Day 1`          = wkq_dat_monday_min
           , `Approx 6 Month Visit`  = approx_06_mo
           , `Approx 12 Month Visit` = approx_12_mo
+          , `Week 52 Follow Up`     = fllwup_52_wk
         )
     })
 
@@ -595,7 +649,7 @@ server <- function(input, output, session) {
 
   df_complete <-
     reactive({
-      dfs_sbl_rens_rdc_aug_nst_cmp_flt()[["fup_tel_arm_1"]] %>%
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$fup_tel_arm_1 %>%
         unnest(data) %>%
         filter(complete == "Yes") %>%
         select(

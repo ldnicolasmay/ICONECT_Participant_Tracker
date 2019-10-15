@@ -18,6 +18,20 @@
 #@##==---==##@   @##==---==##@    #==-- --==#    @##==---==##@   @##==---==##@#
 
 
+# Abbreviation Key
+# - - - - - - - - -
+# dfs  -> dataframes
+# sbl  -> screening + baseline (excl. weekly phone calls & daily video chats)
+# rens -> redcap event names
+# rdc  -> reduced
+# aug  -> augmented
+# nst  -> nested
+# cmp  -> complete (empty columns added for consistency)
+# flt  -> filtered
+# mfs  -> missing forms
+# act  -> activation (incl. only weekly phone calls & daily video chats)
+
+
 # LOAD USEFUL LIBRARIES ----
 
 suppressMessages( library(crayon) )
@@ -34,6 +48,7 @@ suppressMessages( library(lubridate) )
 
 
 # LOAD USEFUL GLOBALS / FUNCTIONS ----
+
 
 DOCKER_DEV <- TRUE    # when developing using docker container
 # DOCKER_DEV <- FALSE   # when developing using local machine (not advised)
@@ -145,10 +160,12 @@ df_cln_sbl <- df_raw %>%
     redcap_event_name = col_character(),
     redcap_repeat_instrument = col_character(),
     redcap_repeat_instance = col_character(),
+    ts_ins = col_character(),
     mrp_saf = col_integer(),
     mrp_yn = col_integer(),
     elg_yn = col_integer(),
-    ps_stt = col_integer()
+    ps_stt = col_integer(),
+    ps_dor = col_integer()
   ))
 
 df_cln_act <- df_raw %>%
@@ -170,7 +187,7 @@ df_cln_act_sel <- df_cln_act %>%
 df_cln_act_sel_mut <- df_cln_act_sel %>%
   mutate(wkq_dat_monday =
            # date...          reset to prev Saturday...  add 2 to get Monday
-           as.Date(wkq_dat) - lubridate::wday(wkq_dat) + 2L)
+           as.Date(wkq_dat) - wday(wkq_dat) +            2L)
 
 df_cln_act_sel_mut_fltmin <- df_cln_act_sel_mut %>%
   group_by(ts_sub_id) %>%
@@ -198,8 +215,15 @@ df_cln_act_sel_mut_flt <-
   select(ts_sub_id,
          week_max,                # study week
          wkq_dat_monday_min) %>%  # effective w1d1 date
-  mutate(approx_06_mo = as.Date(wkq_dat_monday_min) + dweeks(25L),
-         approx_12_mo = as.Date(wkq_dat_monday_min) + dweeks(49L))
+  # mutate(approx_06_mo = as.Date(wkq_dat_monday_min) + dweeks(25L),
+  #        approx_12_mo = as.Date(wkq_dat_monday_min) + dweeks(49L))
+  mutate(approx_06_mo = derive_future_date_range(as.Date(wkq_dat_monday_min),
+                                                 num_weeks = 25L,
+                                                 week_range = 1L),
+         approx_12_mo = derive_future_date_range(as.Date(wkq_dat_monday_min),
+                                                 num_weeks = 49L,
+                                                 week_range = 1L),
+         fllwup_52_wk = as.Date(wkq_dat_monday_min) + dweeks(52L))
 
 # Get unique IDs
 ids <-
