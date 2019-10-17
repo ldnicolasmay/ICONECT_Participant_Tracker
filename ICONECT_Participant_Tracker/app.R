@@ -420,14 +420,14 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_tel_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, ts_ins)
+        select(ts_sub_id)
     })
 
   df_screening_scrn_v_arm_1 <-
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_v_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, con_dtc, mrp_dat, mrp_saf, mrp_yn) %>%
+        select(ts_sub_id, con_ins, con_dtc, mrp_dat, mrp_saf, mrp_yn) %>%
         # mutate(days_since_con_dtc =
         #          as.integer(today() - as_date(con_dtc))) %>%
         mutate(weeks_since_con_dtc =
@@ -468,7 +468,7 @@ server <- function(input, output, session) {
         filter(ps_stt != 2) %>%
         select(
           `Participant ID`             = ts_sub_id
-          , `Assessor`                 = ts_ins
+          , `Assessor`                 = con_ins
           , `Consent Date`             = con_dtc
           # , `Days Since Consent`       = days_since_con_dtc
           , `Weeks Since Consent`      = weeks_since_con_dtc
@@ -496,7 +496,7 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_v_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, con_dtc) %>%
+        select(ts_sub_id, con_ins, con_dtc) %>%
         # mutate(days_since_con_dtc =
         #          as.integer(today() - as_date(con_dtc)))
         mutate(weeks_since_con_dtc =
@@ -507,7 +507,7 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_tel_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, ts_ins)
+        select(ts_sub_id)
     })
 
   df_baseline_admin_arm_1 <-
@@ -565,7 +565,7 @@ server <- function(input, output, session) {
                   by = "ts_sub_id") %>%
         select(
           `Participant ID`               = ts_sub_id
-          , `Assessor`                   = ts_ins
+          , `Assessor`                   = con_ins
           , `Consent Date`               = con_dtc
           # , `Days Since Consent`         = days_since_con_dtc
           , `Weeks Since Consent`        = weeks_since_con_dtc
@@ -596,13 +596,13 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_tel_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, ts_ins)
+        select(ts_sub_id)
     })
 
   df_activation_scrn_v_arm_1 <-
     reactive({
       df_screening_scrn_v_arm_1() %>%
-        select(ts_sub_id, mrp_yn)
+        select(ts_sub_id, con_ins, mrp_yn)
     })
 
   ids_cmp <-
@@ -625,7 +625,7 @@ server <- function(input, output, session) {
         filter(!(ts_sub_id %in% ids_cmp())) %>%
         select(
           `Participant ID`          = ts_sub_id
-          , `Assessor`              = ts_ins
+          , `Assessor`              = con_ins
           , `Study Week`            = week_max
           , `MRI Eligible`          = mrp_yn
           , `Week 1 Day 1`          = wkq_dat_monday_min
@@ -647,17 +647,32 @@ server <- function(input, output, session) {
 
   # Complete tab ----
 
-  df_complete <-
+  df_complete_scrn_v_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$scrn_v_arm_1 %>%
+        unnest(data) %>%
+        select(ts_sub_id, con_ins)
+    })
+
+  df_complete_fup_tel_arm_1 <-
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$fup_tel_arm_1 %>%
         unnest(data) %>%
         filter(complete == "Yes") %>%
-        select(
-          `Participant ID`    = ts_sub_id
-          , `Complete`        = complete
-          , `Completion Date` = lsn_dat
-        )
+        select(ts_sub_id, complete, lsn_dat)
     })
+
+  df_complete <- reactive({
+    right_join(df_complete_scrn_v_arm_1(),
+               df_complete_fup_tel_arm_1(),
+               by = "ts_sub_id") %>%
+      select(
+        `Participant ID`    = ts_sub_id
+        , `Assessor`        = con_ins
+        , `Complete`        = complete
+        , `Completion Date` = lsn_dat
+      )
+  })
 
   output$complete <-
     renderDataTable(

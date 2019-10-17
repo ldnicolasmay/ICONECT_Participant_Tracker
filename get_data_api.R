@@ -22,6 +22,7 @@
 # - - - - - - - - -
 # dfs  -> dataframes
 # sbl  -> screening + baseline (excl. weekly phone calls & daily video chats)
+# act  -> activation (incl. only weekly phone calls & daily video chats)
 # rens -> redcap event names
 # rdc  -> reduced
 # aug  -> augmented
@@ -29,7 +30,6 @@
 # cmp  -> complete (empty columns added for consistency)
 # flt  -> filtered
 # mfs  -> missing forms
-# act  -> activation (incl. only weekly phone calls & daily video chats)
 
 
 # LOAD USEFUL LIBRARIES ----
@@ -155,17 +155,17 @@ df_cln_sbl <- df_raw %>%
   filter(str_detect(ts_sub_id, "^C\\d{4}$")) %>%
   filter(redcap_event_name %in% keeper_RENs_sbl) %>%
   type_convert(col_types = cols(
-    .default = col_date(),
+    .default  = col_date(),
     ts_sub_id = col_character(),
-    redcap_event_name = col_character(),
+    redcap_event_name        = col_character(),
     redcap_repeat_instrument = col_character(),
-    redcap_repeat_instance = col_character(),
-    ts_ins = col_character(),
+    redcap_repeat_instance   = col_character(),
+    con_ins = col_character(),
     mrp_saf = col_integer(),
-    mrp_yn = col_integer(),
-    elg_yn = col_integer(),
-    ps_stt = col_integer(),
-    ps_dor = col_integer()
+    mrp_yn  = col_integer(),
+    elg_yn  = col_integer(),
+    ps_stt  = col_integer(),
+    ps_dor  = col_integer()
   ))
 
 df_cln_act <- df_raw %>%
@@ -173,11 +173,11 @@ df_cln_act <- df_raw %>%
   filter(str_detect(ts_sub_id, "^C\\d{4}$")) %>%
   filter(redcap_event_name %in% keeper_RENs_act) %>%
   type_convert(col_types = cols(
-    .default = col_date(),
+    .default  = col_date(),
     ts_sub_id = col_character(),
-    redcap_event_name = col_character(),
+    redcap_event_name        = col_character(),
     redcap_repeat_instrument = col_character(),
-    redcap_repeat_instance = col_character()
+    redcap_repeat_instance   = col_character()
   ))
 
 df_cln_act_sel <- df_cln_act %>%
