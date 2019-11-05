@@ -23,6 +23,7 @@ suppressMessages( library(DT)             )
 
 suppressMessages( library(dplyr)     )
 suppressMessages( library(tidyr)     )
+suppressMessages( library(readr)     )
 suppressMessages( library(purrr)     )
 suppressMessages( library(rlang)     )
 suppressMessages( library(stringr)   )
@@ -31,8 +32,12 @@ suppressMessages( library(lubridate) )
 
 # USEFUL GLOBALS ----
 
-# DEPLOYED <- FALSE
-DEPLOYED <- TRUE
+# source("../get_data_helpers.R")
+derive_date_range <- function(origin, num_weeks, week_range) {
+  range_start  <- as_date(origin) + dweeks(num_weeks - week_range)
+  range_finish <- as_date(origin) + dweeks(num_weeks + week_range)
+  paste0(range_start, " -- ", range_finish)
+}
 
 DT_OPTIONS <- list(
   paging = FALSE,
@@ -514,7 +519,7 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$admin_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, ran_dat, ps_stt) %>%
+        select(ts_sub_id, ran_dat, ps_stt, ps_dod) %>%
         # mutate(days_since_ran_dat =
         #          as.integer(today() - as_date(ran_dat)))
         mutate(weeks_since_ran_dat =
@@ -553,7 +558,8 @@ server <- function(input, output, session) {
                   by = "ts_sub_id") %>%
         filter(!(ts_sub_id %in% ids_act())) %>%  # filter out pts in activation
         filter(!is.na(ran_dat)) %>%  # filter out anyone w/o randomization date
-        filter(ps_stt != 6) %>%  # filter out anyone who's discontinued
+        filter(ps_stt != 6) %>%      # filter out anyone who's discontinued
+        filter(is.na(ps_dod)) %>%    # filter out anyone who's discontinued
         left_join(.,
                   df_baseline_bl_v_arm_1(),
                   by = "ts_sub_id") %>%
@@ -599,10 +605,29 @@ server <- function(input, output, session) {
         select(ts_sub_id)
     })
 
+  df_activation_admin_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$admin_arm_1 %>%
+        unnest(data) %>%
+        select(ts_sub_id, ps_stt, ps_dod)
+    })
+
   df_activation_scrn_v_arm_1 <-
     reactive({
       df_screening_scrn_v_arm_1() %>%
         select(ts_sub_id, con_ins, mrp_yn)
+    })
+
+  df_activation_bl_mri_arm_1 <-
+    reactive({
+      dfs_sbl_rens_rdc_aug_nst_cmp_flt()$bl_mri_arm_1 %>%
+        unnest(data) %>%
+        select(ts_sub_id, mcf_3) %>%
+        mutate(approx_06_mo_mri = case_when(
+          !is.na(mcf_3) ~
+            derive_date_range(as.Date(mcf_3),
+                                     num_weeks = 25L,
+                                     week_range = 1L)))
     })
 
   ids_cmp <-
@@ -620,18 +645,28 @@ server <- function(input, output, session) {
                 df_activation_scrn_tel_arm_1(),
                 by = "ts_sub_id") %>%
         left_join(.,
+                  df_activation_admin_arm_1(),
+                  by = "ts_sub_id") %>%
+        left_join(.,
                   df_activation_scrn_v_arm_1(),
                   by = "ts_sub_id") %>%
+        left_join(.,
+                  df_activation_bl_mri_arm_1(),
+                  by = "ts_sub_id") %>%
         filter(!(ts_sub_id %in% ids_cmp())) %>%
+        filter(ps_stt != 6) %>%      # filter out anyone who's discontinued
+        filter(is.na(ps_dod)) %>%    # filter out anyone who's discontinued
         select(
           `Participant ID`          = ts_sub_id
           , `Assessor`              = con_ins
           , `Study Week`            = week_max
-          , `MRI Eligible`          = mrp_yn
           , `Week 1 Day 1`          = wkq_dat_monday_min
-          , `Approx 6 Month Visit`  = approx_06_mo
-          , `Approx 12 Month Visit` = approx_12_mo
+          , `Approx 6 Month Visit`  = approx_06_mo_vis
+          , `Approx 12 Month Visit` = approx_12_mo_vis
           , `Week 52 Follow Up`     = fllwup_52_wk
+          , `MRI Eligible`          = mrp_yn
+          , `Baseline MRI`          = mcf_3
+          , `Approx 6 Month MRI`    = approx_06_mo_mri
         )
     })
 
