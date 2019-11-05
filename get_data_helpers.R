@@ -248,19 +248,19 @@ add_missing_forms_col <- function(df, ren, proxy_fields_df) {
 
 # lubridate::stamp("Mar 3, 2020",quiet = TRUE)(lubridate::as_date("2019-01-01"))
 
-#' `derive_future_date_range`
+#' `derive_date_range`
 #'
 #' Given a date, the number of weeks of a target date, and a +/- week range
 #' integer, return the date range as a character value.
 #'
 #' Input:
-#' derive_future_date_range(origin = as_date(c("2000-01-01", "2000-01-02")),
+#' derive_date_range(origin = as_date(c("2000-01-01", "2000-01-02")),
 #'                          num_weeks = 4L,
 #'                          week_range = 1L)
 #' Output:
 #' [1] "2000-01-22 -- 2000-02-05" "2000-01-23 -- 2000-02-06"
 #'
-derive_future_date_range <- function(origin, num_weeks, week_range) {
+derive_date_range <- function(origin, num_weeks, week_range) {
   range_start  <- as_date(origin) + dweeks(num_weeks - week_range)
   range_finish <- as_date(origin) + dweeks(num_weeks + week_range)
   paste0(range_start, " -- ", range_finish)

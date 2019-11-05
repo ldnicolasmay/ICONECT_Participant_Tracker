@@ -215,14 +215,16 @@ df_cln_act_sel_mut_flt <-
   select(ts_sub_id,
          week_max,                # study week
          wkq_dat_monday_min) %>%  # effective w1d1 date
-  # mutate(approx_06_mo = as.Date(wkq_dat_monday_min) + dweeks(25L),
-  #        approx_12_mo = as.Date(wkq_dat_monday_min) + dweeks(49L))
-  mutate(approx_06_mo = derive_future_date_range(as.Date(wkq_dat_monday_min),
-                                                 num_weeks = 25L,
-                                                 week_range = 1L),
-         approx_12_mo = derive_future_date_range(as.Date(wkq_dat_monday_min),
-                                                 num_weeks = 49L,
-                                                 week_range = 1L),
+  # mutate(approx_06_mo_vis = as.Date(wkq_dat_monday_min) + dweeks(25L),
+  #        approx_12_mo_vis = as.Date(wkq_dat_monday_min) + dweeks(49L))
+  mutate(approx_06_mo_vis =
+           derive_date_range(as.Date(wkq_dat_monday_min),
+                                    num_weeks = 25L,
+                                    week_range = 1L),
+         approx_12_mo_vis =
+           derive_date_range(as.Date(wkq_dat_monday_min),
+                                    num_weeks = 49L,
+                                    week_range = 1L),
          fllwup_52_wk = as.Date(wkq_dat_monday_min) + dweeks(52L))
 
 # Get unique IDs
@@ -249,8 +251,8 @@ ren_strs_act <-
   str_extract("^w\\d{2}(d\\d)?_(tel|vc)_arm_1$") %>%
   str_subset(".+")
 
-# For each redcap_event_name, create a df from `df_cln_sbl` that contains only
-# the fields that are identified as relevant proxy fields from the
+# For each redcap_event_name, create a df from `df_cln_sbl` that contains
+# only the fields that are identified as relevant proxy fields from the
 # `proxy_fields_df`, then pack all the dfs into a list.
 dfs_sbl_rens <-
   map(.x = ren_strs_sbl,
