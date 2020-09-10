@@ -622,12 +622,7 @@ server <- function(input, output, session) {
     reactive({
       dfs_sbl_rens_rdc_aug_nst_cmp_flt()$bl_mri_arm_1 %>%
         unnest(data) %>%
-        select(ts_sub_id, mcf_3) %>%
-        mutate(approx_06_mo_mri = case_when(
-          !is.na(mcf_3) ~
-            derive_date_range(as.Date(mcf_3),
-                                     num_weeks = 25L,
-                                     week_range = 1L)))
+        select(ts_sub_id, mcf_3)
     })
 
   ids_cmp <-
@@ -661,12 +656,12 @@ server <- function(input, output, session) {
           , `Assessor`              = con_ins
           , `Study Week`            = week_max
           , `Week 1 Day 1`          = wkq_dat_monday_min
+          , `Baseline MRI`          = mcf_3
           , `Approx 6 Month Visit`  = approx_06_mo_vis
           , `Approx 12 Month Visit` = approx_12_mo_vis
           , `Week 52 Follow Up`     = fllwup_52_wk
           , `MRI Eligible`          = mrp_yn
-          , `Baseline MRI`          = mcf_3
-          , `Approx 6 Month MRI`    = approx_06_mo_mri
+          # , `Approx 6 Month MRI`    = approx_06_mo_mri
         )
     })
 
