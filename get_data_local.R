@@ -53,17 +53,17 @@ DOCKER_DEV <- TRUE    # when developing using docker container
 # DOCKER_DEV <- FALSE   # when developing using local machine (not advised)
 
 if (DOCKER_DEV) {
-  box_path <- "/Box"
+  box_path <- "/Box/"
 } else {
-  box_path <- "~/Box"
+  box_path <- "~/Box/"
 }
 
 wd_path <- paste0(box_path,
-                  "/Documents/I-CONECT",
-                  "/Documents-USB/ICONECT_Participant_Tracker")
+                  "Documents/I-CONECT/",
+                  "Documents-USB/ICONECT_Participant_Tracker/")
 
-source(paste0(wd_path, "/get_data_helpers.R"))
-source(paste0(box_path, "/Documents/R_helpers/config.R"))
+source(paste0(wd_path, "get_data_helpers.R"))
+source(paste0(box_path, "Documents/R_helpers/config.R"))
 
 
 # GET RAW DATA (FROM CSV) ----
@@ -71,13 +71,13 @@ source(paste0(box_path, "/Documents/R_helpers/config.R"))
 cat(
   paste0(green("Retrieving control data from "),
          white(bold("proxy_fields.xlsx")),
-         green(" ...\n")
+         green("...\n")
   )
 )
 
 # Read proxy fields data from hand-built XLSX
 proxy_fields_df <-
-  readxl::read_excel(path = paste0(wd_path, "/proxy_fields.xlsx"),
+  readxl::read_excel(path = paste0(wd_path, "proxy_fields.xlsx"),
                      sheet = "Sheet1")
 
 # Define study data fields to keep
@@ -105,8 +105,8 @@ cat(green("Reading CSV...\n"))
 # Read raw study data from freshest CSV
 df_icdd_csvs <-
   file.info(
-    paste0(paste0(wd_path, "/data_dump/"),
-           list.files(paste0(wd_path, "/data_dump/")))
+    paste0(paste0(wd_path, "data_dump/"),
+           list.files(paste0(wd_path, "data_dump/")))
   ) %>%
   as_tibble(rownames = "filepath") %>%
   filter(!isdir) %>%
@@ -380,17 +380,17 @@ cat(green("Saving data as RDS files...\n"))
 
 saveRDS(dfs_sbl_rens_rdc_aug_nst_cmp,
         paste0(wd_path,
-               "/ICONECT_Participant_Tracker/rds/",
+               "ICONECT_Participant_Tracker/rds/",
                "dfs_sbl_rens_rdc_aug_nst_cmp.Rds"))
 
 saveRDS(dfs_sbl_rens_rdc_aug_nst_mfs,
         paste0(wd_path,
-               "/ICONECT_Participant_Tracker/rds/",
+               "ICONECT_Participant_Tracker/rds/",
                "dfs_sbl_rens_rdc_aug_nst_mfs.Rds"))
 
 saveRDS(df_cln_act_sel_mut_flt,
         paste0(wd_path,
-               "/ICONECT_Participant_Tracker/rds/",
+               "ICONECT_Participant_Tracker/rds/",
                "df_cln_act_sel_mut_flt.Rds"))
 
 cat(cyan("\nDone.\n\n"))
