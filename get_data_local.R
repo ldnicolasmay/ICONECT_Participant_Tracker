@@ -53,25 +53,25 @@ DOCKER_DEV <- TRUE    # when developing using docker container
 # DOCKER_DEV <- FALSE   # when developing using local machine (not advised)
 
 if (DOCKER_DEV) {
-  box_path <- "/Box"
+  box_path <- "/Box/"
 } else {
-  box_path <- "~/Box"
+  box_path <- "~/Box/"
 }
 
 wd_path <- paste0(box_path,
-                  "/Documents/I-CONECT",
-                  "/Documents-USB/ICONECT_Participant_Tracker")
+                  "Documents/I-CONECT/",
+                  "Documents-USB/ICONECT_Participant_Tracker/")
 
-source(paste0(wd_path, "/get_data_helpers.R"))
-source(paste0(box_path, "/Documents/R_helpers/config.R"))
+source(paste0(wd_path, "get_data_helpers.R"))
+source(paste0(box_path, "Documents/R_helpers/config.R"))
 
 
-# GET RAW DATA (VIA API) ----
+# GET RAW DATA (FROM CSV) ----
 
 cat(
   paste0(green("Retrieving control data from "),
          white(bold("proxy_fields.xlsx")),
-         green(" ...\n")
+         green("...\n")
   )
 )
 
@@ -90,13 +90,6 @@ keeper_fields <-
     , unique(proxy_fields_df$Field)
   )
 
-keeper_fields_collapsed <- keeper_fields %>%
-  str_replace(
-    "redcap_event_name|redcap_repeat_instrument|redcap_repeat_instance", ""
-  ) %>%
-  str_subset(".+") %>%
-  paste(collapse = ",")
-
 keeper_fields_sbl <- keeper_fields %>%
   # filter out weekly telephone calls and daily video chats
   str_remove("wkq_dat|vcd_dat") %>%
@@ -107,24 +100,65 @@ keeper_fields_act <- keeper_fields %>%
   str_extract("ts_sub_id|redcap.*|wkq_dat|vcd_dat") %>%
   str_subset(".+")
 
-cat(green("Downloading JSON...\n"))
+cat(green("Reading CSV...\n"))
 
-json_ic <- RCurl::postForm(
-  uri     = OHSU_REDCAP_API_URI,
-  token   = OHSU_REDCAP_API_MAIN_TOKEN,
-  content = 'record',
-  format  = 'json',
-  type    = 'flat',
-  fields  = keeper_fields_collapsed,
-  rawOrLabel             = 'raw',
-  rawOrLabelHeaders      = 'raw',
-  exportCheckboxLabel    = 'false',
-  exportSurveyFields     = 'false',
-  exportDataAccessGroups = 'false',
-  returnFormat           = 'json'
-)
+# Read raw study data from freshest CSV
+df_icdd_csvs <-
+  file.info(
+    paste0(paste0(wd_path, "data_dump/"),
+           list.files(paste0(wd_path, "data_dump/")))
+  ) %>%
+  as_tibble(rownames = "filepath") %>%
+  filter(!isdir) %>%
+  select(filepath) %>%
+  mutate(dl_time =
+           str_extract(filepath, "\\d{4}-\\d{2}-\\d{2}_\\d{4}") %>%
+           str_replace("(_)(\\d{2})(\\d{2})", " \\2:\\3") %>%
+           str_c(":00") %>%
+           as_datetime()
+  )
 
-df_raw <- jsonlite::fromJSON(json_ic) %>% as_tibble() %>% na_if("")
+df_icdd_csvs_latest <-
+  df_icdd_csvs %>%
+  arrange(desc(dl_time)) %>%
+  slice(1L)
+
+# Throw a colorful warning if the latest data CSV wasn't downloaded today
+redd <- make_style("#FF0000")
+orng <- make_style("#FF7700")
+yllw <- make_style("#FFFF00")
+grnn <- make_style("#00DD00")
+bluu <- make_style("#2B2BFF")
+slvr <- silver
+
+warning_bar <- "|------------========= WARNING =========------------|\n"
+warning_msg <- "| The most recent data CSV was not downloaded today |\n"
+warning_msg_length <- nchar(warning_msg)
+if (as.Date(df_icdd_csvs_latest[["dl_time"]]) != Sys.Date()) {
+  warning(
+    bold(
+      paste0("\n",
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             redd(warning_bar),
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             orng(warning_bar),
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             slvr(warning_msg),
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             yllw(warning_msg),
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             slvr(warning_msg),
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             grnn(warning_bar),
+             strrep(" ", (80 - warning_msg_length) %/% 2),
+             bluu(warning_bar))))
+}
+
+df_raw <-
+  read_csv(df_icdd_csvs_latest[[1, "filepath"]],
+           col_types = cols(.default = col_character())) %>%
+  select(all_of(keeper_fields)) %>%
+  na_if("")
 
 # Define redcap_event_name values to keep
 keeper_RENs_sbl <-
@@ -150,7 +184,7 @@ cat(green("Processing data...\n"))
 
 # Get only fields and rows of interest
 df_cln_sbl <- df_raw %>%
-  select(keeper_fields_sbl) %>%
+  select(all_of(keeper_fields_sbl)) %>%
   filter(str_detect(ts_sub_id, "^C\\d{4}$")) %>%
   filter(redcap_event_name %in% keeper_RENs_sbl) %>%
   type_convert(col_types = cols(
@@ -168,7 +202,7 @@ df_cln_sbl <- df_raw %>%
   ))
 
 df_cln_act <- df_raw %>%
-  select(keeper_fields_act) %>%
+  select(all_of(keeper_fields_act)) %>%
   filter(str_detect(ts_sub_id, "^C\\d{4}$")) %>%
   filter(redcap_event_name %in% keeper_RENs_act) %>%
   type_convert(col_types = cols(
@@ -346,17 +380,17 @@ cat(green("Saving data as RDS files...\n"))
 
 saveRDS(dfs_sbl_rens_rdc_aug_nst_cmp,
         paste0(wd_path,
-               "/ICONECT_Participant_Tracker/rds/",
+               "ICONECT_Participant_Tracker/rds/",
                "dfs_sbl_rens_rdc_aug_nst_cmp.Rds"))
 
 saveRDS(dfs_sbl_rens_rdc_aug_nst_mfs,
         paste0(wd_path,
-               "/ICONECT_Participant_Tracker/rds/",
+               "ICONECT_Participant_Tracker/rds/",
                "dfs_sbl_rens_rdc_aug_nst_mfs.Rds"))
 
 saveRDS(df_cln_act_sel_mut_flt,
         paste0(wd_path,
-               "/ICONECT_Participant_Tracker/rds/",
+               "ICONECT_Participant_Tracker/rds/",
                "df_cln_act_sel_mut_flt.Rds"))
 
 cat(cyan("\nDone.\n\n"))

@@ -22,7 +22,6 @@
 #' the redcap_event_name string in `proxies_df`
 #'
 reduce_df_by_proxy_field_ren <- function(ren_str, df, proxies_df) {
-  # print(ren_str)
   df %>%
     filter(redcap_event_name %in%
              pull(filter(proxies_df, REN == ren_str), REN)) %>%
@@ -58,7 +57,6 @@ reduce_df_by_proxy_field_ren <- function(ren_str, df, proxies_df) {
 #'   | 3  | a       | b       | c       |
 #'
 collapse_df_rows_by_ren <- function(ren_str, dfs, ids) {
-
   dfs[[ren_str]] %>%
     mutate_all(as.character) %>%
     purrr::map_dfr(.x = ids,
@@ -129,7 +127,8 @@ zip_vectors <- function(v1, v2) {
   v <- v2
   v[is.na(v2)] <- v1[is.na(v2)]
   v[is.na(v1)] <- v2[is.na(v1)]
-  v
+
+  as.list(v)
 }
 
 #' `add_missing_fields`
@@ -139,7 +138,6 @@ zip_vectors <- function(v1, v2) {
 #' correspond with the redcap_event_name string in `proxy_fields_df`
 #'
 add_missing_fields <- function(df, ren, proxy_fields_df) {
-
   cols_to_exclude <- names(df)
 
   cols_to_add <- proxy_fields_df %>%
@@ -165,7 +163,6 @@ add_missing_fields <- function(df, ren, proxy_fields_df) {
 #' for each participant
 #'
 add_complete_col <- function(df, ren, proxy_fields_df) {
-
   # select_proxy_fields_df = proxy_fields_df %>%
   #   select(Field, Form, REN) %>%
   #   filter(REN == ren)
@@ -193,7 +190,7 @@ add_complete_col <- function(df, ren, proxy_fields_df) {
 #' 6 Discontinued
 #'
 add_status_col <- function(df, ren, proxy_fields_df) {
-  if ("ps_stt" %in% names(df[[1, "data"]])) {
+  if ("ps_stt" %in% names(df[[1, "data"]][[1]])) {
   df %>%
     rowwise() %>%
     mutate(complete = case_when(
@@ -216,7 +213,6 @@ add_status_col <- function(df, ren, proxy_fields_df) {
 #' for each participant
 #'
 add_missing_forms_col <- function(df, ren, proxy_fields_df) {
-
   select_proxy_fields_df = proxy_fields_df %>%
     select(Field, Form, REN) %>%
     filter(REN == ren)
@@ -243,7 +239,6 @@ add_missing_forms_col <- function(df, ren, proxy_fields_df) {
       missing_forms = paste(unlist(missing_forms_list), collapse = "<br/> ")
     ) %>%
     ungroup()
-
 }
 
 # lubridate::stamp("Mar 3, 2020",quiet = TRUE)(lubridate::as_date("2019-01-01"))

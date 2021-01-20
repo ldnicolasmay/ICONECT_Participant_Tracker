@@ -2,7 +2,11 @@
 .Rhistory
 .RData
 .Ruserdata
+
 .DS_Store
+
+.idea/
+
 *.csv
 *.xls
 *.xlsx
